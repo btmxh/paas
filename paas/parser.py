@@ -1,16 +1,17 @@
-import sys
 from typing import TextIO, Iterator
 from .models import ProblemInstance, Task, Team
+
 
 def _token_iterator(input_stream: TextIO) -> Iterator[str]:
     for line in input_stream:
         for token in line.split():
             yield token
 
+
 def parse_input(input_stream: TextIO) -> ProblemInstance:
     """
     Parses the problem input from the given text stream.
-    
+
     The format is expected to be:
     - N Q
     - Q lines of dependencies (i j)
@@ -21,7 +22,7 @@ def parse_input(input_stream: TextIO) -> ProblemInstance:
     - K lines of costs (i j c)
     """
     tokens = _token_iterator(input_stream)
-    
+
     try:
         n_str = next(tokens)
         q_str = next(tokens)
@@ -44,7 +45,7 @@ def parse_input(input_stream: TextIO) -> ProblemInstance:
         tasks[i].duration = d
 
     M = int(next(tokens))
-    
+
     teams = {}
     for j in range(1, M + 1):
         s = int(next(tokens))
@@ -56,7 +57,7 @@ def parse_input(input_stream: TextIO) -> ProblemInstance:
         task_id = int(next(tokens))
         team_id = int(next(tokens))
         cost = int(next(tokens))
-        
+
         if task_id in tasks:
             tasks[task_id].compatible_teams[team_id] = cost
 
