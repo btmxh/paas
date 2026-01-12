@@ -1,7 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
-    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
     jail-nix.url = "sourcehut:~alexdavid/jail.nix";
     jailed-agents.url = "github:btmxh/jailed-agents";
@@ -12,7 +11,6 @@
     {
       self,
       nixpkgs,
-      nixpkgs-unstable,
       systems,
       jail-nix,
       jailed-agents,
@@ -27,7 +25,6 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
           inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages config;
           inherit (config) package configFile;
           jail = jail-nix.lib.init pkgs;
@@ -39,18 +36,16 @@
             packages =
               with pkgs;
               [
-                python3
-                uv
+                (python3.withPackages (ps: [ ps.ortools ]))
                 ruff
-                pkgs-unstable.ty
+                ty
                 nixd
                 nixfmt-rfc-style
               ]
               ++ (builtins.attrValues (
                 jailed-agents.lib.${system}.makeJailedAgents {
                   extraPkgs = [
-                    python3
-                    uv
+                    (python3.withPackages (ps: [ ps.ortools ]))
                     ruff
                     ty
                     nixfmt-rfc-style
@@ -63,7 +58,6 @@
                   extraJailOptions = with jail.combinators; [
                     (readonly configFile)
                     (readonly (lib.getExe package))
-                    (readonly ".venv")
                   ];
                 }
               ));
@@ -98,7 +92,6 @@
             trim-trailing-whitespace.enable = true;
             ruff.enable = true;
             ruff-format.enable = true;
-            uv-export.enable = true;
           };
         };
       });
