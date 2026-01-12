@@ -1,156 +1,151 @@
+import sys
 from paas.models import ProblemInstance, Schedule, Assignment
 from paas.middleware.base import Runnable
 
 
 class GreedyMinStartTimeSolver(Runnable):
+    """
+    Implements a greedy scheduling strategy that prioritizes minimizing the start time of tasks.
+
+    The algorithm proceeds in two phases:
+    1.  **Root Tasks**: Immediately schedule all tasks that have no dependencies (roots).
+        For each root task, choose the team that allows the earliest start time (minimizing cost as a tie-breaker).
+    2.  **Dependent Tasks**: Iteratively select the next best (task, team) pair.
+        In each iteration, consider all unscheduled tasks whose dependencies are fully satisfied.
+        Calculate the earliest possible start time for each compatible team (constrained by both
+        team availability and predecessor completion times).
+        Select the assignment that yields the global minimum start time.
+    """
+
     def run(self, problem: ProblemInstance) -> Schedule:
-        # Prepare data structures
         tasks = problem.tasks
         teams = problem.teams
+        INF = sys.maxsize
 
-        # 1e9 is used as "infinity" in the original snippet, but for completion_time
-        # of unscheduled tasks, it might be better to check for containment in scheduled set.
-        # However, to stick close to the logic:
-        INF = 1_000_000_000
+        # Track when each team becomes free.
+        # team_available_time: team_id -> time
+        team_available_time = {
+            t_id: team.available_from for t_id, team in teams.items()
+        }
 
-        # available_time: team_id -> int
-        available_time = {t_id: team.available_from for t_id, team in teams.items()}
+        # Track when each task finishes.
+        # task_completion_time: task_id -> time
+        task_completion_time = {}
 
-        # completion_time: task_id -> int
-        completion_time = {t_id: INF for t_id in tasks}
-
-        # Track scheduled tasks to avoid reprocessing
-        scheduled_tasks = set()
+        scheduled_task_ids = set()
         assignments = []
 
-        # Helper to get cost
-        # cost(task, team)
-        def get_cost(tid, mid):
-            return tasks[tid].compatible_teams.get(mid, INF)
+        # --- Phase 1: Schedule Root Tasks ---
+        # We explicitly handle tasks with no predecessors first.
+        # Sort by ID to ensure deterministic behavior.
+        root_task_ids = sorted(
+            [tid for tid, task in tasks.items() if not task.predecessors]
+        )
 
-        # 1. Identify tasks with no predecessors
-        # Sort for determinism
-        roots = sorted([tid for tid, task in tasks.items() if not task.predecessors])
+        for task_id in root_task_ids:
+            task = tasks[task_id]
 
-        # 2. Schedule roots eagerly
-        for tid in roots:
-            task = tasks[tid]
-
-            min_avail_time = INF
-            min_avail_team = -1
-            min_cost = INF
-
-            # Iterate through compatible teams for this task
-            # Sort keys for determinism if needed, though compatible_teams is dict
-            for team_id, cost in sorted(task.compatible_teams.items()):
-                team_avail = available_time[team_id]
-
-                # Logic from snippet:
-                # if available_time[team] == min_available_time and Cost[(task, team)] < min_cost:
-                # if available_time[team] < min_available_time:
-
-                if team_avail < min_avail_time:
-                    min_avail_time = team_avail
-                    min_avail_team = team_id
-                    min_cost = cost
-                elif team_avail == min_avail_time and cost < min_cost:
-                    min_avail_team = team_id
-                    min_cost = cost
-
-            if min_avail_team != -1:
-                # Assign
-                start = min_avail_time
-                finish = start + task.duration
-
-                available_time[min_avail_team] = finish
-                completion_time[tid] = finish
-                scheduled_tasks.add(tid)
-                assignments.append(Assignment(tid, min_avail_team, start))
-
-        # 3. Main loop for remaining tasks
-        # The snippet iterates while there are unscheduled tasks (and time limit not hit)
-
-        while len(scheduled_tasks) < len(tasks):
             best_start_time = INF
-            best_team = -1
-            best_task = -1
+            best_team_id = -1
             best_cost = INF
 
-            found_candidate = False
+            # Find the best team for this root task.
+            # Since there are no predecessors, start time is determined solely by team availability.
+            for team_id, cost in sorted(task.compatible_teams.items()):
+                avail_time = team_available_time[team_id]
 
-            # Iterate all unscheduled tasks
-            # To match snippet: iterate tasks, then compatible teams
-            unscheduled = [t for t in tasks if t not in scheduled_tasks]
-            if not unscheduled:
-                break
+                # We want the earliest start time.
+                # If start times are equal, prefer the lower cost.
+                if avail_time < best_start_time:
+                    best_start_time = avail_time
+                    best_team_id = team_id
+                    best_cost = cost
+                elif avail_time == best_start_time and cost < best_cost:
+                    best_team_id = team_id
+                    best_cost = cost
 
-            for tid in unscheduled:
-                task = tasks[tid]
-
-                for team_id, cost in task.compatible_teams.items():
-                    team_avail = available_time[team_id]
-
-                    # Check dependencies
-                    # snippet:
-                    # continue_flag_if_pre_task_not_done = False
-                    # pre_task_completion_time = []
-                    # for task_1 in pre_tasks[task]:
-                    #   if completion_time[task_1] > cur_time: ...
-
-                    deps_finish_after_team = []
-                    deps_incomplete = False
-
-                    for pred_id in task.predecessors:
-                        pred_finish = completion_time[pred_id]
-                        if pred_finish == INF:
-                            # Dependency not scheduled yet
-                            deps_incomplete = True
-                            break  # Optimization: can't schedule this task yet
-
-                        if pred_finish > team_avail:
-                            deps_finish_after_team.append(pred_finish)
-
-                    if deps_incomplete:
-                        continue
-
-                    # Calculate Earliest Start Time (EST)
-                    if deps_finish_after_team:
-                        est = max(deps_finish_after_team)
-                        # This corresponds to snippet's Case 1 logic
-                        # "if max_pre_task_completion_time < min_available_time"
-                        # logic handles cases where start time is dictated by dependencies
-                    else:
-                        est = team_avail
-                        # This corresponds to snippet's Case 2 logic
-                        # "if available_time[team] < min_available_time"
-
-                    # Update global best
-                    if est < best_start_time:
-                        best_start_time = est
-                        best_team = team_id
-                        best_task = tid
-                        best_cost = cost
-                        found_candidate = True
-                    elif est == best_start_time:
-                        if cost < best_cost:
-                            best_team = team_id
-                            best_task = tid
-                            best_cost = cost
-                            found_candidate = True
-
-            if found_candidate:
-                # Assign best candidate
-                task = tasks[best_task]
+            if best_team_id != -1:
+                # Commit the assignment
                 start = best_start_time
                 finish = start + task.duration
 
-                available_time[best_team] = finish
-                completion_time[best_task] = finish
-                scheduled_tasks.add(best_task)
-                assignments.append(Assignment(best_task, best_team, start))
+                team_available_time[best_team_id] = finish
+                task_completion_time[task_id] = finish
+                scheduled_task_ids.add(task_id)
+                assignments.append(Assignment(task_id, best_team_id, start))
+
+        # --- Phase 2: Schedule Remaining Tasks ---
+        # Repeatedly find the best (task, team) pair among all currently valid options.
+        while len(scheduled_task_ids) < len(tasks):
+            global_best_start = INF
+            global_best_team = -1
+            global_best_task = -1
+            global_best_cost = INF
+
+            found_candidate = False
+
+            # Identify candidates: tasks that are not yet scheduled but have all predecessors done.
+            # Note: This linear scan in the loop makes the complexity O(N^2 * M).
+            # Optimization: We could maintain a "ready set", but for now, we stick to the
+            # straightforward logic for clarity.
+            unscheduled_ids = [tid for tid in tasks if tid not in scheduled_task_ids]
+
+            if not unscheduled_ids:
+                break
+
+            for task_id in unscheduled_ids:
+                task = tasks[task_id]
+
+                # Check if dependencies are satisfied
+                # If any predecessor is not in task_completion_time, we can't schedule this yet.
+                if not all(p in task_completion_time for p in task.predecessors):
+                    continue
+
+                # Calculate the earliest time dependencies allow the task to start.
+                # It must start after *all* predecessors are finished.
+                min_start_from_preds = 0
+                if task.predecessors:
+                    min_start_from_preds = max(
+                        task_completion_time[p] for p in task.predecessors
+                    )
+
+                # Evaluate all compatible teams
+                for team_id, cost in task.compatible_teams.items():
+                    team_avail = team_available_time[team_id]
+
+                    # The task can start only when the team is free AND dependencies are done.
+                    start_time = max(team_avail, min_start_from_preds)
+
+                    # Update global best if this option is better
+                    if start_time < global_best_start:
+                        global_best_start = start_time
+                        global_best_team = team_id
+                        global_best_task = task_id
+                        global_best_cost = cost
+                        found_candidate = True
+                    elif start_time == global_best_start:
+                        if cost < global_best_cost:
+                            global_best_team = team_id
+                            global_best_task = task_id
+                            global_best_cost = cost
+                            found_candidate = True
+
+            if found_candidate:
+                # Commit the best assignment found in this iteration
+                task = tasks[global_best_task]
+                start = global_best_start
+                finish = start + task.duration
+
+                team_available_time[global_best_team] = finish
+                task_completion_time[global_best_task] = finish
+                scheduled_task_ids.add(global_best_task)
+                assignments.append(
+                    Assignment(global_best_task, global_best_team, start)
+                )
             else:
-                # If no candidate found (e.g. cycle or impossible constraints not pruned),
-                # break to avoid infinite loop
+                # No valid candidate found.
+                # This can happen if there are cycles (deadlock) or impossible constraints
+                # (e.g., a task with no compatible teams) that weren't pruned.
                 break
 
         return Schedule(assignments)
