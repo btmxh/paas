@@ -1,4 +1,3 @@
-from typing import Set, Dict, List
 from paas.middleware.base import MapProblem
 from paas.models import ProblemInstance, Task
 
@@ -16,8 +15,8 @@ class DependencyPruner(MapProblem):
         # We also need to handle the case where a task points to a predecessor that isn't in 'tasks'
         valid_ids = set(tasks.keys())
 
-        to_remove: Set[int] = set()
-        queue: List[int] = []
+        to_remove: set[int] = set()
+        queue: list[int] = []
 
         # Find initial broken tasks
         for t_id, task in tasks.items():
@@ -58,7 +57,7 @@ class DependencyPruner(MapProblem):
                     queue.append(succ_id)
 
         # 3. Create new task list and clean up references
-        new_tasks: Dict[int, Task] = {}
+        new_tasks: dict[int, Task] = {}
 
         final_valid_ids = valid_ids - to_remove
 
