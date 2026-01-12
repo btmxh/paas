@@ -14,8 +14,16 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
 ### Python Dependencies
 - **DO NOT** use raw `python` or `pip` calls if possible.
 - **DO NOT** manually edit `pyproject.toml` for dependencies.
-- **DO NOT** use outdated `List[T]` and `Dict[K, V]` types from the `typing`
-  library. **DO** use the modern built-in `list[T]` and `dict[K, V]` types instead.
+- **DO NOT** use outdated types such as `List[T]` and `Dict[K, V]` from the `typing`
+  module.
+- **DO** use `uv add <package>` to add new dependencies.
+- **DO** use `uv run -m <command>` to execute scripts within the environment.
+- **DO** use typings as much as possible. Typechecks will be run on CI, so avoid
+  writing typing-unsafe code as much as possible. Run `ty check` (which uses
+  Astral's new `ty` type-checker) to check the project for potential typing
+  errors.
+- **DO** run unit tests via `uv run -m unittest discover tests`
+- **DO** use the modern built-in `list[T]` and `dict[K, V]` types instead.
   Here is a list of what you should use instead:
   ```py
   List   -> list
@@ -26,15 +34,9 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
   Optional[int]  -> int | None
   Union[A, B]    -> A | B
   ```
-- **DO** use `uv add <package>` to add new dependencies.
-- **DO** use `uv run <command>` to execute scripts within the environment.
-- **DO** use typings as much as possible. Typechecks will be run on CI, so avoid
-  writing typing-unsafe code as much as possible. Run `ty check` (which uses
-  Astral's new `ty` type-checker) to check the project for potential typing
-  errors.
 
 ### Code Quality
-- Pre-commit checks (defined in flake.nix, which is then used to generate the .pre-commit-config.yaml file) are in place for formatting and linting.
+- Pre-commit checks (defined in flake.nix, which is then used to generate the .pre-commit-config.yaml file) are in place for formatting and linting. Fixable problems (formatting) are automatically fixed, so adding the new changes and rerunning `git commit` should address those.
 - If a commit fails due to these checks, ensure the issues are fixed before attempting to commit again.
 - Pushing to remote branches is handled manually by the user.
 
