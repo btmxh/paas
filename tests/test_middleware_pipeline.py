@@ -66,11 +66,12 @@ class TestMiddlewarePipeline(unittest.TestCase):
         dependency_pruner = DependencyPruner()
         p3 = dependency_pruner.map_problem(p2)
 
-        # Expect 3 removed (depended on 2).
-        # Expect 5 removed (depended on 4).
+        # Expect 3 removed (depended on 2 - Cycle Task).
+        # Expect 5 KEPT (depended on 4 - Impossible Task).
+        #   ImpossibleTaskRemover now cleans up dependencies, so 5's dependency on 4 is removed gracefully.
         # Expect 6, 7 to remain.
         self.assertNotIn(3, p3.tasks)
-        self.assertNotIn(5, p3.tasks)
+        self.assertIn(5, p3.tasks)
         self.assertIn(6, p3.tasks)
         self.assertIn(7, p3.tasks)
 
