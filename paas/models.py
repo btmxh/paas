@@ -24,3 +24,15 @@ class ProblemInstance:
     num_teams: int
     tasks: Dict[int, Task]
     teams: Dict[int, Team]
+
+
+@dataclass
+class Assignment:
+    task_id: int
+    team_id: int
+    start_time: int
+
+
+@dataclass
+class Schedule:
+    assignments: List[Assignment]
