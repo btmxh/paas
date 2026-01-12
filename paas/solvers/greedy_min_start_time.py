@@ -45,26 +45,19 @@ class GreedyMinStartTimeSolver(Runnable):
         for task_id in root_task_ids:
             task = tasks[task_id]
 
-            best_start_time = INF
-            best_team_id = -1
-            best_cost = INF
-
             # Find the best team for this root task.
             # Since there are no predecessors, start time is determined solely by team availability.
-            for team_id, cost in sorted(task.compatible_teams.items()):
-                avail_time = team_available_time[team_id]
+            best_team_id = min(
+                task.compatible_teams.keys(),
+                key=lambda tid: (
+                    team_available_time[tid],  # prefer earlier start time, and then
+                    task.compatible_teams[tid],  # prefer lower cost
+                ),
+                default=None,
+            )
 
-                # We want the earliest start time.
-                # If start times are equal, prefer the lower cost.
-                if avail_time < best_start_time:
-                    best_start_time = avail_time
-                    best_team_id = team_id
-                    best_cost = cost
-                elif avail_time == best_start_time and cost < best_cost:
-                    best_team_id = team_id
-                    best_cost = cost
-
-            if best_team_id != -1:
+            if best_team_id is not None:
+                best_start_time = team_available_time[best_team_id]
                 # Commit the assignment
                 start = best_start_time
                 finish = start + task.duration
