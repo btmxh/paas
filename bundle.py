@@ -81,7 +81,7 @@ def get_dependencies(file_path: Path) -> List[Path]:
         elif isinstance(node, ast.ImportFrom):
             if node.module and node.module.startswith(PACKAGE_NAME):
                 deps.append(resolve_module(file_path, node.module, 0))
-            elif node.level > 0:
+            elif node.module and node.level > 0:
                 deps.append(resolve_module(file_path, node.module, node.level))
 
     return list(set(deps))
@@ -159,12 +159,14 @@ def clean_content(file_path: Path, keep_main: bool) -> str:
     # 1. Imports
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
+            assert node.end_lineno is not None
             for alias in node.names:
                 if alias.name.startswith(PACKAGE_NAME):
                     # Remove the whole import statement
                     for lineno in range(node.lineno - 1, node.end_lineno):
                         lines_to_skip.add(lineno)
         elif isinstance(node, ast.ImportFrom):
+            assert node.end_lineno is not None
             if (node.module and node.module.startswith(PACKAGE_NAME)) or node.level > 0:
                 for lineno in range(node.lineno - 1, node.end_lineno):
                     lines_to_skip.add(lineno)
@@ -173,6 +175,8 @@ def clean_content(file_path: Path, keep_main: bool) -> str:
     if not keep_main:
         for node in ast.walk(tree):
             if is_main_check(node):
+                assert hasattr(node, "lineno") and hasattr(node, "end_lineno")
+                assert isinstance(node.lineno, int) and isinstance(node.end_lineno, int)
                 for lineno in range(node.lineno - 1, node.end_lineno):
                     lines_to_skip.add(lineno)
 
