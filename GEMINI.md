@@ -12,19 +12,20 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
 ## Development Workflow
 
 ### Python Dependencies
-- **DO NOT** use raw `python` or `pip` calls if possible.
+- **DO NOT** use `uv` anymore.
+- **DO NOT** use raw `pip` calls if possible.
 - **DO NOT** manually edit `pyproject.toml` for dependencies.
 - **DO NOT** use the modern built-in typings such as `list[T]` and `dict[K, V]`.
   As this project maintains compatibility with Python 3.8.
-- **DO** use `uv add <package>` to add new dependencies.
-- **DO** use `uv run -m <command>` to execute scripts within the environment.
 - **DO** use typings as much as possible. Typechecks will be run on CI, so avoid
   writing typing-unsafe code as much as possible. Run `ty check` (which uses
   Astral's new `ty` type-checker) to check the project for potential typing
   errors.
-- **DO** run unit tests via `uv run -m unittest discover tests`
+- **DO** run unit tests via `python3 -m unittest discover tests`
 - **DO** use the legacy types such as `list[T]` and `dict[K, V]` from the
   `typing` module.
+- **DO** use `python3 -m paas.main` to execute the application.
+- **NOTE:** `or-tools` and other major dependencies are now managed via the `nix-shell` environment.
 
 ### Code Quality
 - Pre-commit checks (defined in flake.nix, which is then used to generate the .pre-commit-config.yaml file) are in place for formatting and linting. Fixable problems (formatting) are automatically fixed, so adding the new changes and rerunning `git commit` should address those.

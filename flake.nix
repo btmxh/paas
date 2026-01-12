@@ -39,7 +39,7 @@
             packages =
               with pkgs;
               [
-                python3
+                (python3.withPackages (ps: [ ps.ortools ]))
                 uv
                 ruff
                 pkgs-unstable.ty
@@ -49,7 +49,7 @@
               ++ (builtins.attrValues (
                 jailed-agents.lib.${system}.makeJailedAgents {
                   extraPkgs = [
-                    python3
+                    (python3.withPackages (ps: [ ps.ortools ]))
                     uv
                     ruff
                     ty
@@ -63,7 +63,6 @@
                   extraJailOptions = with jail.combinators; [
                     (readonly configFile)
                     (readonly (lib.getExe package))
-                    (readonly ".venv")
                   ];
                 }
               ));
