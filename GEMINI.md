@@ -14,8 +14,8 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
 ### Python Dependencies
 - **DO NOT** use raw `python` or `pip` calls if possible.
 - **DO NOT** manually edit `pyproject.toml` for dependencies.
-- **DO NOT** use outdated types such as `List[T]` and `Dict[K, V]` from the `typing`
-  module.
+- **DO NOT** use the modern built-in typings such as `list[T]` and `dict[K, V]`.
+  As this project maintains compatibility with Python 3.8.
 - **DO** use `uv add <package>` to add new dependencies.
 - **DO** use `uv run -m <command>` to execute scripts within the environment.
 - **DO** use typings as much as possible. Typechecks will be run on CI, so avoid
@@ -23,17 +23,8 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
   Astral's new `ty` type-checker) to check the project for potential typing
   errors.
 - **DO** run unit tests via `uv run -m unittest discover tests`
-- **DO** use the modern built-in `list[T]` and `dict[K, V]` types instead.
-  Here is a list of what you should use instead:
-  ```py
-  List   -> list
-  Tuple  -> tuple
-  Dict   -> dict
-  Set    -> set
-  FrozenSet -> frozenset
-  Optional[int]  -> int | None
-  Union[A, B]    -> A | B
-  ```
+- **DO** use the legacy types such as `list[T]` and `dict[K, V]` from the
+  `typing` module.
 
 ### Code Quality
 - Pre-commit checks (defined in flake.nix, which is then used to generate the .pre-commit-config.yaml file) are in place for formatting and linting. Fixable problems (formatting) are automatically fixed, so adding the new changes and rerunning `git commit` should address those.
