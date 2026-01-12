@@ -35,52 +35,17 @@ class GreedyMinStartTimeSolver(Runnable):
         scheduled_task_ids = set()
         assignments = []
 
-        # --- Phase 1: Schedule Root Tasks ---
-        # We explicitly handle tasks with no predecessors first.
-        # Sort by ID to ensure deterministic behavior.
-        root_task_ids = sorted(
-            [tid for tid, task in tasks.items() if not task.predecessors]
-        )
-
-        for task_id in root_task_ids:
-            task = tasks[task_id]
-
-            # Find the best team for this root task.
-            # Since there are no predecessors, start time is determined solely by team availability.
-            best_team_id = min(
-                task.compatible_teams.keys(),
-                key=lambda tid: (
-                    team_available_time[tid],  # prefer earlier start time, and then
-                    task.compatible_teams[tid],  # prefer lower cost
-                ),
-                default=None,
-            )
-
-            if best_team_id is not None:
-                best_start_time = team_available_time[best_team_id]
-                # Commit the assignment
-                start = best_start_time
-                finish = start + task.duration
-
-                team_available_time[best_team_id] = finish
-                task_completion_time[task_id] = finish
-                scheduled_task_ids.add(task_id)
-                assignments.append(Assignment(task_id, best_team_id, start))
-
-        # --- Phase 2: Schedule Remaining Tasks ---
-        # Repeatedly find the best (task, team) pair among all currently valid options.
+        # MAIN LOOP:
+        # Greedily pick tasks based on
         while len(scheduled_task_ids) < len(tasks):
-            global_best_start = INF
+            global_best_finish = INF
+            global_best_start = INF  # tie-breaking
             global_best_team = -1
             global_best_task = -1
             global_best_cost = INF
 
             found_candidate = False
 
-            # Identify candidates: tasks that are not yet scheduled but have all predecessors done.
-            # Note: This linear scan in the loop makes the complexity O(N^2 * M).
-            # Optimization: We could maintain a "ready set", but for now, we stick to the
-            # straightforward logic for clarity.
             unscheduled_ids = [tid for tid in tasks if tid not in scheduled_task_ids]
 
             if not unscheduled_ids:
@@ -96,11 +61,9 @@ class GreedyMinStartTimeSolver(Runnable):
 
                 # Calculate the earliest time dependencies allow the task to start.
                 # It must start after *all* predecessors are finished.
-                min_start_from_preds = 0
-                if task.predecessors:
-                    min_start_from_preds = max(
-                        task_completion_time[p] for p in task.predecessors
-                    )
+                min_start_from_preds = max(
+                    (task_completion_time[p] for p in task.predecessors), default=0
+                )
 
                 # Evaluate all compatible teams
                 for team_id, cost in task.compatible_teams.items():
@@ -108,20 +71,35 @@ class GreedyMinStartTimeSolver(Runnable):
 
                     # The task can start only when the team is free AND dependencies are done.
                     start_time = max(team_avail, min_start_from_preds)
+                    finish_time = start_time + task.duration
 
                     # Update global best if this option is better
-                    if start_time < global_best_start:
+                    if finish_time < global_best_finish:
+                        global_best_finish = finish_time
                         global_best_start = start_time
                         global_best_team = team_id
                         global_best_task = task_id
                         global_best_cost = cost
                         found_candidate = True
-                    elif start_time == global_best_start:
-                        if cost < global_best_cost:
+                    # Tie-breaking
+                    elif finish_time == global_best_finish:
+                        # Minimize idle time!
+                        # If two tasks finish at the same time, pick the one that
+                        # starts EARLIER.
+                        # Why? If Task A starts at 2 and finishes at 10,
+                        # and Task B starts at 8 and finishes at 10...
+                        # Picking Task B creates a wasted idle gap [2,8] on the team.
+                        if start_time < global_best_start:
+                            global_best_start = start_time
                             global_best_team = team_id
                             global_best_task = task_id
                             global_best_cost = cost
-                            found_candidate = True
+                        elif start_time == global_best_start:
+                            if cost < global_best_cost:
+                                global_best_team = team_id
+                                global_best_task = task_id
+                                global_best_cost = cost
+                                found_candidate = True
 
             if found_candidate:
                 # Commit the best assignment found in this iteration
