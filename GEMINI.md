@@ -29,7 +29,9 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
 - **DO** use `uv add <package>` to add new dependencies.
 - **DO** use `uv run <command>` to execute scripts within the environment.
 - **DO** use typings as much as possible. Typechecks will be run on CI, so avoid
-  writing typing-unsafe code as much as possible.
+  writing typing-unsafe code as much as possible. Run `ty check` (which uses
+  Astral's new `ty` type-checker) to check the project for potential typing
+  errors.
 
 ### Code Quality
 - Pre-commit checks (defined in flake.nix, which is then used to generate the .pre-commit-config.yaml file) are in place for formatting and linting.
