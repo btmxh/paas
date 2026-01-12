@@ -1,5 +1,4 @@
 import sys
-from typing import Dict, List, Set
 
 from paas.middleware.base import MapProblem
 from paas.models import ProblemInstance, Task
@@ -30,59 +29,47 @@ class CycleRemover(MapProblem):
         if not cycle_tasks:
             return problem
 
-        # 2. Propagate removal to dependents (downstream)
-        tasks_to_remove = self._propagate_removal(tasks, cycle_tasks)
-
-        # 3. Create new problem instance
-        new_tasks: Dict[int, Task] = {}
+        # 2. Create new problem instance (removing only cycle tasks)
+        new_tasks: dict[int, Task] = {}
 
         for task_id, task in tasks.items():
-            if task_id in tasks_to_remove:
+            if task_id in cycle_tasks:
                 continue
 
-            # Create a copy of the task to avoid mutating the original
-            # Note: Shallow copy might be enough if we replace lists,
-            # but cleaner to construct new lists.
-            new_successors = [s for s in task.successors if s not in tasks_to_remove]
-            new_predecessors = [
-                p for p in task.predecessors if p not in tasks_to_remove
-            ]
-
-            # Verify consistency: kept tasks should not have removed predecessors
-            # (because if p is removed, task_id depends on p, so task_id should be removed)
-            # However, we'll just filter to be safe and consistent.
+            # We DO NOT clean up predecessors or successors here.
+            # We leave the dangling references for the DependencyPruner to handle.
+            # This ensures that dependent tasks (which now have missing predecessors)
+            # will be correctly identified and removed by the Pruner.
 
             new_task = Task(
                 id=task.id,
                 duration=task.duration,
-                predecessors=new_predecessors,
-                successors=new_successors,
+                predecessors=list(task.predecessors),  # Shallow copy
+                successors=list(task.successors),  # Shallow copy
                 compatible_teams=task.compatible_teams.copy(),
             )
             new_tasks[task_id] = new_task
 
-        print(
-            f"CycleRemover: Removed {len(tasks_to_remove)} tasks ({len(cycle_tasks)} in cycles)."
-        )
+        print(f"CycleRemover: Removed {len(cycle_tasks)} tasks (involved in cycles).")
 
         return ProblemInstance(
             num_tasks=len(new_tasks),
             num_teams=problem.num_teams,
             tasks=new_tasks,
-            teams=problem.teams,  # Teams remain unchanged
+            teams=problem.teams,
         )
 
-    def _find_sccs(self, tasks: Dict[int, Task]) -> List[List[int]]:
+    def _find_sccs(self, tasks: dict[int, Task]) -> list[list[int]]:
         """
         Tarjan's algorithm to find SCCs.
         """
-        visited: Set[int] = set()
-        stack: List[int] = []
-        on_stack: Set[int] = set()
-        ids: Dict[int, int] = {}
-        low: Dict[int, int] = {}
+        visited: set[int] = set()
+        stack: list[int] = []
+        on_stack: set[int] = set()
+        ids: dict[int, int] = {}
+        low: dict[int, int] = {}
 
-        sccs: List[List[int]] = []
+        sccs: list[list[int]] = []
         id_counter = [0]
 
         # Increase recursion limit just in case, though iterative would be better for huge graphs.
@@ -123,25 +110,3 @@ class CycleRemover(MapProblem):
                 dfs(task_id)
 
         return sccs
-
-    def _propagate_removal(
-        self, tasks: Dict[int, Task], bad_tasks: Set[int]
-    ) -> Set[int]:
-        """
-        Identify all tasks that depend on the bad_tasks (transitively).
-        """
-        # BFS or DFS starting from bad_tasks following successors
-        to_remove = set(bad_tasks)
-        queue = list(bad_tasks)
-
-        while queue:
-            current = queue.pop(0)
-            if current not in tasks:
-                continue
-
-            for succ in tasks[current].successors:
-                if succ not in to_remove:
-                    to_remove.add(succ)
-                    queue.append(succ)
-
-        return to_remove

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Protocol
+from typing import Protocol
 
 from paas.models import ProblemInstance, Schedule
 
@@ -13,13 +13,10 @@ class Middleware(ABC):
     Abstract middleware class.
     """
 
-    def __init__(self, next_runnable: Optional[Runnable] = None):
-        self.next = next_runnable
-
     @abstractmethod
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(self, problem: ProblemInstance, next_runnable: Runnable) -> Schedule:
         """
-        Process the problem and return a schedule.
+        Process the problem and return a schedule by optionally calling next_runnable.
         """
         pass
 
@@ -30,13 +27,9 @@ class MapProblem(Middleware):
     before passing it to the next handler.
     """
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(self, problem: ProblemInstance, next_runnable: Runnable) -> Schedule:
         new_problem = self.map_problem(problem)
-        if self.next:
-            return self.next.run(new_problem)
-        raise ValueError(
-            "MapProblem middleware requires a next handler to process the problem."
-        )
+        return next_runnable.run(new_problem)
 
     @abstractmethod
     def map_problem(self, problem: ProblemInstance) -> ProblemInstance:
@@ -52,13 +45,8 @@ class MapResult(Middleware):
     returned by the next handler.
     """
 
-    def run(self, problem: ProblemInstance) -> Schedule:
-        if not self.next:
-            raise ValueError(
-                "MapResult middleware requires a next handler to produce a result."
-            )
-
-        result = self.next.run(problem)
+    def run(self, problem: ProblemInstance, next_runnable: Runnable) -> Schedule:
+        result = next_runnable.run(problem)
         return self.map_result(result)
 
     @abstractmethod
@@ -67,3 +55,31 @@ class MapResult(Middleware):
         Refine the result.
         """
         pass
+
+
+class _WrappedRunnable:
+    def __init__(self, middleware: Middleware, next_runnable: Runnable):
+        self.middleware = middleware
+        self.next_runnable = next_runnable
+
+    def run(self, problem: ProblemInstance) -> Schedule:
+        return self.middleware.run(problem, self.next_runnable)
+
+
+class Pipeline(Runnable):
+    """
+    Helper to chain multiple middlewares and a final solver.
+    """
+
+    def __init__(self, middlewares: list[Middleware], solver: Runnable):
+        self.middlewares = middlewares
+        self.solver = solver
+
+    def run(self, problem: ProblemInstance) -> Schedule:
+        pipeline = self.solver
+        for m in reversed(self.middlewares):
+            pipeline = self._wrap(m, pipeline)
+        return pipeline.run(problem)
+
+    def _wrap(self, m: Middleware, next_runnable: Runnable) -> Runnable:
+        return _WrappedRunnable(m, next_runnable)

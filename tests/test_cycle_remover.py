@@ -11,7 +11,7 @@ class TestCycleRemover(unittest.TestCase):
             succs = []
         return Task(tid, duration, preds, succs, {})
 
-    def test_cycle_removal(self):
+    def test_cycle_removal_only(self):
         # Scenario:
         # 1 -> 2
         # 2 -> 3
@@ -38,16 +38,29 @@ class TestCycleRemover(unittest.TestCase):
         # Assertions
         self.assertNotIn(2, new_problem.tasks, "Task 2 (in cycle) should be removed")
         self.assertNotIn(3, new_problem.tasks, "Task 3 (in cycle) should be removed")
-        self.assertNotIn(
-            4, new_problem.tasks, "Task 4 (depends on cycle) should be removed"
-        )
         self.assertNotIn(6, new_problem.tasks, "Task 6 (self-loop) should be removed")
+
+        # UPDATED BEHAVIOR: Dependents are NOT removed by CycleRemover alone
+        self.assertIn(
+            4,
+            new_problem.tasks,
+            "Task 4 (depends on cycle) should NOT be removed by CycleRemover",
+        )
         self.assertIn(1, new_problem.tasks, "Task 1 (precedes cycle) should be kept")
         self.assertIn(5, new_problem.tasks, "Task 5 (independent) should be kept")
 
-        # Check successors of 1
+        # UPDATED BEHAVIOR: Adjacency lists are NOT cleaned up by CycleRemover
+        # Task 1 still points to 2, even though 2 is gone.
         t1_new = new_problem.tasks[1]
-        self.assertNotIn(2, t1_new.successors, "Task 1 should no longer point to 2")
+        self.assertIn(
+            2, t1_new.successors, "Task 1 should still have stale reference to 2"
+        )
+
+        # Task 4 still points from 3
+        t4_new = new_problem.tasks[4]
+        self.assertIn(
+            3, t4_new.predecessors, "Task 4 should still have stale reference to 3"
+        )
 
 
 if __name__ == "__main__":
