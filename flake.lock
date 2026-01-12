@@ -34,24 +34,6 @@
         "type": "github"
       }
     },
-    "flake-utils_2": {
-      "inputs": {
-        "systems": "systems_2"
-      },
-      "locked": {
-        "lastModified": 1731533236,
-        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
     "git-hooks": {
       "inputs": {
         "flake-compat": "flake-compat",
@@ -108,18 +90,33 @@
         "type": "sourcehut"
       }
     },
+    "jail-nix_2": {
+      "locked": {
+        "lastModified": 1765903853,
+        "narHash": "sha256-buoPpx7moJzAXbLuHAImn6x9fGRdk3x0T57goPv1vnc=",
+        "owner": "~alexdavid",
+        "repo": "jail.nix",
+        "rev": "bf9f49c8118e7a77b68a675dbe26e93e91412066",
+        "type": "sourcehut"
+      },
+      "original": {
+        "owner": "~alexdavid",
+        "repo": "jail.nix",
+        "type": "sourcehut"
+      }
+    },
     "jailed-agents": {
       "inputs": {
-        "flake-utils": "flake-utils_2",
-        "jail-nix": "jail-nix",
+        "flake-utils": "flake-utils",
+        "jail-nix": "jail-nix_2",
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1768058747,
-        "narHash": "sha256-aoS8bu6ZnGOSFDZEu6/i8f57zgS/QBx//WFKGzE5X54=",
+        "lastModified": 1768235558,
+        "narHash": "sha256-TQRkYNJgN5V/YOAbBkZtCiCDvoqi5+QtOkwyE1pLSco=",
         "owner": "btmxh",
         "repo": "jailed-agents",
-        "rev": "9cb5927c7d36ac2ecf16e7ab2bee2eb03161211f",
+        "rev": "38b73ac92d1b6ac2cca7a9398d2b5c8841487c51",
         "type": "github"
       },
       "original": {
@@ -178,11 +175,11 @@
     },
     "root": {
       "inputs": {
-        "flake-utils": "flake-utils",
         "git-hooks": "git-hooks",
+        "jail-nix": "jail-nix",
         "jailed-agents": "jailed-agents",
         "nixpkgs": "nixpkgs_3",
-        "systems": "systems_3"
+        "systems": "systems_2"
       }
     },
     "systems": {
@@ -201,21 +198,6 @@
       }
     },
     "systems_2": {
-      "locked": {
-        "lastModified": 1681028828,
-        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
-        "owner": "nix-systems",
-        "repo": "default",
-        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-systems",
-        "repo": "default",
-        "type": "github"
-      }
-    },
-    "systems_3": {
       "locked": {
         "lastModified": 1681028828,
         "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",

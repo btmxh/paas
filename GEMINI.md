@@ -40,6 +40,8 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
 
 ### Git Strategy
 - Always work on a separate feature branch, prefixed with `ai/*`.
+- Before finishing your work, commit your changes (if any, make sure to commit
+  to a feature branch and not the master branch).
 - Keep the feature branch updated by pulling changes from the `master` branch.
 - Commit messages should follow the project's style (e.g., conventional commits).
 
