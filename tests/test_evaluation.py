@@ -80,24 +80,54 @@ class TestEvaluation(unittest.TestCase):
         # Lower cost is better
         self.assertTrue(s2 < s1)
 
-    def test_multi_instance_grader(self):
-        from paas.grader import MultiInstanceGrader
+        def test_multi_instance_grader(self):
+            from paas.grader import MultiInstanceGrader, SimpleNormalizer
 
-        mig = MultiInstanceGrader()
+            mig = MultiInstanceGrader(normalizer=SimpleNormalizer())
 
-        # Instance 1: 10 tasks total
-        inst1 = ProblemInstance(10, 1, {}, {})
-        score1 = Score(8, 100, 50)
+            # Instance 1: 10 tasks total
 
-        # Instance 2: 20 tasks total
-        inst2 = ProblemInstance(20, 1, {}, {})
-        score2 = Score(10, 150, 80)
+            inst1 = ProblemInstance(10, 1, {}, {})
 
-        mig.add_result("inst1", score1, inst1)
-        mig.add_result("inst2", score2, inst2)
+            score1 = Score(8, 100, 50)
 
-        summary = mig.get_summary()
-        self.assertEqual(summary["count"], 2)
-        self.assertEqual(summary["total_tasks"], 18)
-        # (8/10 + 10/20) / 2 = (0.8 + 0.5) / 2 = 0.65
-        self.assertAlmostEqual(summary["avg_completion_rate"], 0.65)
+            # Instance 2: 20 tasks total
+
+            inst2 = ProblemInstance(20, 1, {}, {})
+
+            score2 = Score(10, 150, 80)
+
+            mig.add_result("inst1", score1, inst1)
+
+            mig.add_result("inst2", score2, inst2)
+
+            summary = mig.get_summary()
+
+            self.assertEqual(summary["count"], 2)
+
+            self.assertEqual(summary["total_tasks"], 18)
+
+            # (8/10 + 10/20) / 2 = (0.8 + 0.5) / 2 = 0.65
+
+            self.assertAlmostEqual(summary["avg_completion_rate"], 0.65)
+
+        def test_jury_normalizer(self):
+            from paas.grader import MultiInstanceGrader, JuryNormalizer
+
+            mig = MultiInstanceGrader(normalizer=JuryNormalizer())
+
+            inst = ProblemInstance(10, 1, {}, {})
+
+            jury_score = Score(10, 100, 100)
+
+            my_score = Score(10, 80, 120)
+
+            mig.add_result("inst1", my_score, inst, reference=jury_score)
+
+            summary = mig.get_summary()
+
+            self.assertAlmostEqual(summary["avg_relative_tasks"], 1.0)
+
+            self.assertAlmostEqual(summary["avg_relative_makespan"], 0.8)
+
+            self.assertAlmostEqual(summary["avg_relative_cost"], 1.2)
