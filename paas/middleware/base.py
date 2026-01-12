@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Protocol
+from typing import Protocol
 
 from paas.models import ProblemInstance, Schedule
 
@@ -13,7 +13,7 @@ class Middleware(ABC):
     Abstract middleware class.
     """
 
-    def __init__(self, next_runnable: Optional[Runnable] = None):
+    def __init__(self, next_runnable: Runnable | None = None):
         self.next = next_runnable
 
     @abstractmethod
