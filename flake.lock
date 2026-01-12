@@ -112,11 +112,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1768058747,
-        "narHash": "sha256-aoS8bu6ZnGOSFDZEu6/i8f57zgS/QBx//WFKGzE5X54=",
+        "lastModified": 1768235558,
+        "narHash": "sha256-TQRkYNJgN5V/YOAbBkZtCiCDvoqi5+QtOkwyE1pLSco=",
         "owner": "btmxh",
         "repo": "jailed-agents",
-        "rev": "9cb5927c7d36ac2ecf16e7ab2bee2eb03161211f",
+        "rev": "38b73ac92d1b6ac2cca7a9398d2b5c8841487c51",
         "type": "github"
       },
       "original": {
@@ -159,16 +159,16 @@
     },
     "nixpkgs_3": {
       "locked": {
-        "lastModified": 1768127708,
-        "narHash": "sha256-1Sm77VfZh3mU0F5OqKABNLWxOuDeHIlcFjsXeeiPazs=",
+        "lastModified": 1767313136,
+        "narHash": "sha256-16KkgfdYqjaeRGBaYsNrhPRRENs0qzkQVUooNHtoy2w=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "ffbc9f8cbaacfb331b6017d5a5abb21a492c9a38",
+        "rev": "ac62194c3917d5f474c1a844b6fd6da2db95077d",
         "type": "github"
       },
       "original": {
         "owner": "nixos",
-        "ref": "nixos-unstable",
+        "ref": "nixos-25.05",
         "repo": "nixpkgs",
         "type": "github"
       }
