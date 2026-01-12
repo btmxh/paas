@@ -3,3 +3,5 @@ __pycache__
 /.venv
 /.direnv
 /.pre-commit-config.yaml
+entry.py
+submission.py
