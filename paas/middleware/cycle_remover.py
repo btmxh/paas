@@ -51,7 +51,10 @@ class CycleRemover(MapProblem):
             )
             new_tasks[task_id] = new_task
 
-        print(f"CycleRemover: Removed {len(cycle_tasks)} tasks (involved in cycles).")
+        print(
+            f"CycleRemover: Removed {len(cycle_tasks)} tasks (involved in cycles).",
+            file=sys.stderr,
+        )
 
         return ProblemInstance(
             num_tasks=len(new_tasks),

@@ -1,3 +1,4 @@
+import sys
 from typing import Set, List, Dict
 from paas.middleware.base import MapProblem
 from paas.models import ProblemInstance, Task
@@ -86,7 +87,8 @@ class DependencyPruner(MapProblem):
 
         if to_remove:
             print(
-                f"DependencyPruner: Removed {len(to_remove)} tasks (broken dependencies)."
+                f"DependencyPruner: Removed {len(to_remove)} tasks (broken dependencies).",
+                file=sys.stderr,
             )
 
         return ProblemInstance(

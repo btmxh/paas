@@ -1,3 +1,4 @@
+import sys
 from paas.middleware.base import MapProblem
 from paas.models import ProblemInstance
 
@@ -23,7 +24,8 @@ class ImpossibleTaskRemover(MapProblem):
         }
 
         print(
-            f"ImpossibleTaskRemover: Removed {len(to_remove)} tasks (no compatible teams)."
+            f"ImpossibleTaskRemover: Removed {len(to_remove)} tasks (no compatible teams).",
+            file=sys.stderr,
         )
 
         return ProblemInstance(
