@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Protocol
+from typing import Protocol, List
 
 from paas.models import ProblemInstance, Schedule
 
@@ -71,7 +71,7 @@ class Pipeline(Runnable):
     Helper to chain multiple middlewares and a final solver.
     """
 
-    def __init__(self, middlewares: list[Middleware], solver: Runnable):
+    def __init__(self, middlewares: List[Middleware], solver: Runnable):
         self.middlewares = middlewares
         self.solver = solver
 
