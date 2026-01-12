@@ -1,14 +1,15 @@
 from dataclasses import dataclass, field
+from typing import List, Dict
 
 
 @dataclass
 class Task:
     id: int
     duration: int
-    predecessors: list[int] = field(default_factory=list)
-    successors: list[int] = field(default_factory=list)
+    predecessors: List[int] = field(default_factory=list)
+    successors: List[int] = field(default_factory=list)
     # Map of compatible team_id -> cost
-    compatible_teams: dict[int, int] = field(default_factory=dict)
+    compatible_teams: Dict[int, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -21,8 +22,8 @@ class Team:
 class ProblemInstance:
     num_tasks: int
     num_teams: int
-    tasks: dict[int, Task]
-    teams: dict[int, Team]
+    tasks: Dict[int, Task]
+    teams: Dict[int, Team]
 
 
 @dataclass
@@ -34,4 +35,4 @@ class Assignment:
 
 @dataclass
 class Schedule:
-    assignments: list[Assignment]
+    assignments: List[Assignment]
