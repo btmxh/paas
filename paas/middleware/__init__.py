@@ -2,7 +2,6 @@ from .base import Middleware, MapProblem, MapResult
 from .cycle_remover import CycleRemover
 from .impossible_task_remover import ImpossibleTaskRemover
 from .dependency_pruner import DependencyPruner
-from .local_search import LocalSearchMiddleware
 
 __all__ = [
     "Middleware",
@@ -11,5 +10,4 @@ __all__ = [
     "CycleRemover",
     "ImpossibleTaskRemover",
     "DependencyPruner",
-    "LocalSearchMiddleware",
 ]
