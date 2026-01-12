@@ -1,6 +1,7 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
+    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
     jail-nix.url = "sourcehut:~alexdavid/jail.nix";
     jailed-agents.url = "github:btmxh/jailed-agents";
@@ -11,6 +12,7 @@
     {
       self,
       nixpkgs,
+      nixpkgs-unstable,
       systems,
       jail-nix,
       jailed-agents,
@@ -25,6 +27,7 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
           inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages config;
           inherit (config) package configFile;
           jail = jail-nix.lib.init pkgs;
@@ -39,7 +42,7 @@
                 python3
                 uv
                 ruff
-                ty
+                pkgs-unstable.ty
                 nixd
                 nixfmt-rfc-style
               ]
