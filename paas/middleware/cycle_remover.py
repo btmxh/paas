@@ -1,4 +1,5 @@
 import sys
+from typing import Set, List, Dict
 
 from paas.middleware.base import MapProblem
 from paas.models import ProblemInstance, Task
@@ -30,7 +31,7 @@ class CycleRemover(MapProblem):
             return problem
 
         # 2. Create new problem instance (removing only cycle tasks)
-        new_tasks: dict[int, Task] = {}
+        new_tasks: Dict[int, Task] = {}
 
         for task_id, task in tasks.items():
             if task_id in cycle_tasks:
@@ -59,17 +60,17 @@ class CycleRemover(MapProblem):
             teams=problem.teams,
         )
 
-    def _find_sccs(self, tasks: dict[int, Task]) -> list[list[int]]:
+    def _find_sccs(self, tasks: Dict[int, Task]) -> List[List[int]]:
         """
         Tarjan's algorithm to find SCCs.
         """
-        visited: set[int] = set()
-        stack: list[int] = []
-        on_stack: set[int] = set()
-        ids: dict[int, int] = {}
-        low: dict[int, int] = {}
+        visited: Set[int] = set()
+        stack: List[int] = []
+        on_stack: Set[int] = set()
+        ids: Dict[int, int] = {}
+        low: Dict[int, int] = {}
 
-        sccs: list[list[int]] = []
+        sccs: List[List[int]] = []
         id_counter = [0]
 
         # Increase recursion limit just in case, though iterative would be better for huge graphs.
