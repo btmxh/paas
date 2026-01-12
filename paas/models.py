@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Dict
 
+
 @dataclass
 class Task:
     id: int
@@ -10,10 +11,12 @@ class Task:
     # Map of compatible team_id -> cost
     compatible_teams: Dict[int, int] = field(default_factory=dict)
 
+
 @dataclass
 class Team:
     id: int
     available_from: int
+
 
 @dataclass
 class ProblemInstance:
