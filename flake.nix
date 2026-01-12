@@ -2,7 +2,7 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
     systems.url = "github:nix-systems/default";
-    flake-utils.url = "github:numtide/flake-utils";
+    jail-nix.url = "sourcehut:~alexdavid/jail.nix";
     jailed-agents.url = "github:btmxh/jailed-agents";
     git-hooks.url = "github:cachix/git-hooks.nix";
   };
@@ -12,7 +12,7 @@
       self,
       nixpkgs,
       systems,
-      flake-utils,
+      jail-nix,
       jailed-agents,
       git-hooks,
       ...
@@ -25,7 +25,9 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages;
+          inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages config;
+          inherit (config) package configFile;
+          jail = jail-nix.lib.init pkgs;
         in
         {
           default = pkgs.mkShell {
@@ -48,6 +50,17 @@
                     uv
                     ruff
                     ty
+                    nixfmt-rfc-style
+                    ruff
+                    ty
+                    package
+                  ]
+                  ++ enabledPackages;
+
+                  extraJailOptions = with jail.combinators; [
+                    (readonly configFile)
+                    (readonly (lib.getExe package))
+                    (readonly ".venv")
                   ];
                 }
               ));
@@ -63,7 +76,7 @@
           inherit (self.checks.${system}.pre-commit-check) config;
           inherit (config) package configFile;
           script = ''
-            ${pkgs.lib.getExe package} run --all-files --config ${configFile}
+            "${pkgs.lib.getExe package}" run --all-files --config ${configFile}
           '';
         in
         pkgs.writeShellScriptBin "pre-commit-run" script
