@@ -47,10 +47,10 @@ class MapResult(Middleware):
 
     def run(self, problem: ProblemInstance, next_runnable: Runnable) -> Schedule:
         result = next_runnable.run(problem)
-        return self.map_result(result)
+        return self.map_result(problem, result)
 
     @abstractmethod
-    def map_result(self, result: Schedule) -> Schedule:
+    def map_result(self, problem: ProblemInstance, result: Schedule) -> Schedule:
         """
         Refine the result.
         """
