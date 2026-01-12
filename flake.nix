@@ -5,15 +5,32 @@
     jailed-agents.url = "github:btmxh/jailed-agents";
   };
 
-  outputs = { self, nixpkgs, flake-utils, jailed-agents, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = nixpkgs.legacyPackages.${system};
-      in {
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      jailed-agents,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      {
         formatter = pkgs.nixfmt-tree;
         devShells.default = pkgs.mkShell {
-          packages = with pkgs;
-            [ python3 uv nixd nixfmt ]
+          packages =
+            with pkgs;
+            [
+              python3
+              uv
+              nixd
+              nixfmt-rfc-style
+            ]
             ++ (builtins.attrValues (jailed-agents.lib.${system}.makeJailedAgents { }));
         };
-      });
+      }
+    );
 }
