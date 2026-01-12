@@ -40,7 +40,6 @@
               with pkgs;
               [
                 (python3.withPackages (ps: [ ps.ortools ]))
-                uv
                 ruff
                 pkgs-unstable.ty
                 nixd
@@ -50,7 +49,6 @@
                 jailed-agents.lib.${system}.makeJailedAgents {
                   extraPkgs = [
                     (python3.withPackages (ps: [ ps.ortools ]))
-                    uv
                     ruff
                     ty
                     nixfmt-rfc-style
@@ -97,7 +95,6 @@
             trim-trailing-whitespace.enable = true;
             ruff.enable = true;
             ruff-format.enable = true;
-            uv-export.enable = true;
           };
         };
       });
