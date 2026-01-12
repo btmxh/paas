@@ -1,8 +1,9 @@
 import unittest
-from paas.models import Task, ProblemInstance
+from paas.models import Task, ProblemInstance, Schedule
 from paas.middleware.cycle_remover import CycleRemover
 from paas.middleware.impossible_task_remover import ImpossibleTaskRemover
 from paas.middleware.dependency_pruner import DependencyPruner
+from paas.middleware.base import Pipeline
 
 
 class TestMiddlewarePipeline(unittest.TestCase):
@@ -76,6 +77,54 @@ class TestMiddlewarePipeline(unittest.TestCase):
         # Verify 6's successors and 7's predecessors are clean
         self.assertEqual(p3.tasks[6].successors, [7])
         self.assertEqual(p3.tasks[7].predecessors, [6])
+
+    def test_pipeline_run(self):
+        # Test the new 'run' signature with a mock solver
+        class MockSolver:
+            def run(self, problem: ProblemInstance) -> Schedule:
+                # Just return an empty schedule with the number of tasks as a marker
+                return Schedule(assignments=[])
+
+        t1 = self.create_task(1, compatible_teams={})  # Impossible
+        problem = ProblemInstance(1, 1, {1: t1}, {1: "Team"})
+
+        remover = ImpossibleTaskRemover()
+
+        # This middleware should remove task 1
+        class CheckProblemRunnable:
+            def __init__(self, expected_count):
+                self.expected_count = expected_count
+
+            def run(self, problem: ProblemInstance) -> Schedule:
+                if len(problem.tasks) != self.expected_count:
+                    raise ValueError(
+                        f"Expected {self.expected_count} tasks, got {len(problem.tasks)}"
+                    )
+                return Schedule(assignments=[])
+
+        # Pipeline: ImpossibleTaskRemover -> CheckProblemRunnable(0)
+        result = remover.run(problem, CheckProblemRunnable(0))
+        self.assertIsInstance(result, Schedule)
+
+    def test_pipeline_class(self):
+        class MockSolver:
+            def run(self, problem: ProblemInstance) -> Schedule:
+                return Schedule(assignments=[])
+
+        t1 = self.create_task(1, succs=[1])  # Cycle
+        problem = ProblemInstance(1, 1, {1: t1}, {1: "Team"})
+
+        # Using the Pipeline helper
+        pipeline = Pipeline(
+            middlewares=[
+                CycleRemover(),
+                DependencyPruner(),
+            ],
+            solver=MockSolver(),
+        )
+
+        result = pipeline.run(problem)
+        self.assertIsInstance(result, Schedule)
 
 
 if __name__ == "__main__":
