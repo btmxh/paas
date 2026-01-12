@@ -1,5 +1,5 @@
 import unittest
-from paas.models import Task, ProblemInstance, Schedule
+from paas.models import Task, ProblemInstance, Schedule, Team
 from paas.middleware.cycle_remover import CycleRemover
 from paas.middleware.impossible_task_remover import ImpossibleTaskRemover
 from paas.middleware.dependency_pruner import DependencyPruner
@@ -38,7 +38,7 @@ class TestMiddlewarePipeline(unittest.TestCase):
 
         tasks = {1: t1, 2: t2, 3: t3, 4: t4, 5: t5, 6: t6, 7: t7}
         # Teams don't really matter for structure, just count
-        teams = {1: "Team1"}  # Mock team object
+        teams = {1: Team(id=1, available_from=0)}
 
         problem = ProblemInstance(7, 1, tasks, teams)
 
@@ -86,7 +86,7 @@ class TestMiddlewarePipeline(unittest.TestCase):
                 return Schedule(assignments=[])
 
         t1 = self.create_task(1, compatible_teams={})  # Impossible
-        problem = ProblemInstance(1, 1, {1: t1}, {1: "Team"})
+        problem = ProblemInstance(1, 1, {1: t1}, {1: Team(id=1, available_from=0)})
 
         remover = ImpossibleTaskRemover()
 
@@ -112,7 +112,7 @@ class TestMiddlewarePipeline(unittest.TestCase):
                 return Schedule(assignments=[])
 
         t1 = self.create_task(1, succs=[1])  # Cycle
-        problem = ProblemInstance(1, 1, {1: t1}, {1: "Team"})
+        problem = ProblemInstance(1, 1, {1: t1}, {1: Team(id=1, available_from=0)})
 
         # Using the Pipeline helper
         pipeline = Pipeline(

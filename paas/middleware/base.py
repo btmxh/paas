@@ -57,6 +57,15 @@ class MapResult(Middleware):
         pass
 
 
+class _WrappedRunnable:
+    def __init__(self, middleware: Middleware, next_runnable: Runnable):
+        self.middleware = middleware
+        self.next_runnable = next_runnable
+
+    def run(self, problem: ProblemInstance) -> Schedule:
+        return self.middleware.run(problem, self.next_runnable)
+
+
 class Pipeline(Runnable):
     """
     Helper to chain multiple middlewares and a final solver.
@@ -73,8 +82,4 @@ class Pipeline(Runnable):
         return pipeline.run(problem)
 
     def _wrap(self, m: Middleware, next_runnable: Runnable) -> Runnable:
-        class WrappedRunnable:
-            def run(self, p: ProblemInstance) -> Schedule:
-                return m.run(p, next_runnable)
-
-        return WrappedRunnable()
+        return _WrappedRunnable(m, next_runnable)
