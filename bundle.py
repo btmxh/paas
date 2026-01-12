@@ -9,6 +9,81 @@ PACKAGE_NAME = "paas"
 OUTPUT_FILE = ROOT_DIR / "submission.py"
 
 
+class TypeStripper(ast.NodeTransformer):
+    """
+    Removes complex type hints from the AST to ensure Python 3.8 compatibility.
+    strips function annotations entirely, and sanitizes variable annotations
+    (stripping subscripts like [int] and modern unions like |).
+    """
+
+    def visit_FunctionDef(self, node):
+        # Remove return type annotation
+        node.returns = None
+        self.generic_visit(node)
+        return node
+
+    def visit_AsyncFunctionDef(self, node):
+        node.returns = None
+        self.generic_visit(node)
+        return node
+
+    def visit_arg(self, node):
+        # Remove argument annotation
+        node.annotation = None
+        self.generic_visit(node)
+        return node
+
+    def visit_AnnAssign(self, node):
+        # Sanitize annotation to ensure 3.8 compatibility
+        # We keep AnnAssign because dataclasses need them.
+        node.annotation = self.sanitize(node.annotation)
+        self.generic_visit(node)
+        return node
+
+    def sanitize(self, node):
+        if isinstance(node, ast.Subscript):
+            # list[int] -> list
+            return self.sanitize(node.value)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+            # int | str -> object
+            return ast.Name(id="object", ctx=ast.Load())
+        return node
+
+
+class ContentCleaner(ast.NodeTransformer):
+    """
+    Removes internal imports and main block.
+    """
+
+    def __init__(self, keep_main: bool):
+        self.keep_main = keep_main
+
+    def visit_Import(self, node):
+        # Remove internal imports
+        new_names = []
+        for alias in node.names:
+            if not alias.name.startswith(PACKAGE_NAME):
+                new_names.append(alias)
+
+        if not new_names:
+            return None  # Remove the statement
+
+        node.names = new_names
+        return node
+
+    def visit_ImportFrom(self, node):
+        # Remove internal imports
+        if (node.module and node.module.startswith(PACKAGE_NAME)) or node.level > 0:
+            return None
+        return node
+
+    def visit_If(self, node):
+        if not self.keep_main and is_main_check(node):
+            return None
+        self.generic_visit(node)
+        return node
+
+
 def find_imports(file_path: Path) -> List[Tuple[str, int]]:
     """
     Parses a python file and returns a list of (module_name, level)
@@ -144,48 +219,24 @@ def is_main_check(node: ast.AST) -> bool:
 
 def clean_content(file_path: Path, keep_main: bool) -> str:
     """
-    Reads file content and removes internal imports.
-    Also removes 'if __name__ == "__main__":' block if keep_main is False.
+    Reads file content, removes internal imports and main block,
+    and strips type hints for Py3.8 compatibility.
     """
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     tree = ast.parse(content)
-    lines = content.splitlines(keepends=True)
 
-    # Identify lines to remove
-    lines_to_skip = set()
+    # 1. Remove internal imports and main block
+    cleaner = ContentCleaner(keep_main)
+    tree = cleaner.visit(tree)
 
-    # 1. Imports
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            assert node.end_lineno is not None
-            for alias in node.names:
-                if alias.name.startswith(PACKAGE_NAME):
-                    # Remove the whole import statement
-                    for lineno in range(node.lineno - 1, node.end_lineno):
-                        lines_to_skip.add(lineno)
-        elif isinstance(node, ast.ImportFrom):
-            assert node.end_lineno is not None
-            if (node.module and node.module.startswith(PACKAGE_NAME)) or node.level > 0:
-                for lineno in range(node.lineno - 1, node.end_lineno):
-                    lines_to_skip.add(lineno)
+    # 2. Strip types
+    stripper = TypeStripper()
+    tree = stripper.visit(tree)
 
-    # 2. Main block
-    if not keep_main:
-        for node in ast.walk(tree):
-            if is_main_check(node):
-                assert hasattr(node, "lineno") and hasattr(node, "end_lineno")
-                assert isinstance(node.lineno, int) and isinstance(node.end_lineno, int)
-                for lineno in range(node.lineno - 1, node.end_lineno):
-                    lines_to_skip.add(lineno)
-
-    output = []
-    for i, line in enumerate(lines):
-        if i not in lines_to_skip:
-            output.append(line)
-
-    return "".join(output)
+    ast.fix_missing_locations(tree)
+    return ast.unparse(tree)
 
 
 def collect_stdlib_imports(files: List[Path]) -> Set[str]:
