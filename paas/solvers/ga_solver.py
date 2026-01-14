@@ -1,3 +1,4 @@
+import sys
 import random
 import time
 from typing import List, Tuple, Optional
@@ -88,7 +89,7 @@ class GASolver(Runnable):
         Returns: (task_count, completion_time, cost)
         """
         if not assignments:
-            return 0, float("inf"), float("inf")
+            return 0, sys.maxsize, sys.maxsize
 
         task_count = len(assignments)
         completion_time = 0
