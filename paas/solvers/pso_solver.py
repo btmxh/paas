@@ -37,7 +37,6 @@ class PSOSolver(Solver):
         w: float = 0.4,
         c1: float = 1.5,
         c2: float = 2.0,
-        time_limit: float = 10.0,
         seed: int = 8,
         time_factor: float = 1.0,
     ):
@@ -47,7 +46,6 @@ class PSOSolver(Solver):
         self.w = w
         self.c1 = c1
         self.c2 = c2
-        self.time_limit = time_limit
         self.seed = seed
 
     def _decode_particle(
@@ -144,7 +142,9 @@ class PSOSolver(Solver):
 
         return penalty_unscheduled + score_time + score_cost
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> Schedule:
         random.seed(self.seed)
         start_time_pso = time.time()
 
@@ -156,7 +156,7 @@ class PSOSolver(Solver):
         global_best_position: Optional[List[float]] = None
 
         for iteration in range(self.max_iterations):
-            if time.time() - start_time_pso >= self.time_limit:
+            if time.time() - start_time_pso >= time_limit:
                 break
 
             for particle in swarm:

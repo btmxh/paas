@@ -13,7 +13,9 @@ class CPSolver(Solver):
     def __init__(self, time_factor: float = 1.0):
         super().__init__(time_factor)
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> Schedule:
         self._start_time = time.time()
         if not problem.tasks:
             return Schedule(assignments=[])
@@ -25,15 +27,17 @@ class CPSolver(Solver):
 
         # Lexicographical optimization:
         # 1. Maximize number of tasks
-        max_tasks = self._solve_max_tasks(problem, horizon)
+        max_tasks = self._solve_max_tasks(problem, horizon, time_limit)
         if max_tasks == 0:
             return Schedule(assignments=[])
 
         # 2. Minimize completion time
-        min_makespan = self._solve_min_makespan(problem, horizon, max_tasks)
+        min_makespan = self._solve_min_makespan(problem, horizon, max_tasks, time_limit)
 
         # 3. Minimize total cost
-        assignments = self._solve_min_cost(problem, horizon, max_tasks, min_makespan)
+        assignments = self._solve_min_cost(
+            problem, horizon, max_tasks, min_makespan, time_limit
+        )
 
         return Schedule(assignments=assignments)
 
@@ -102,14 +106,16 @@ class CPSolver(Solver):
 
         return model, assigned, start_times, presence, end_times
 
-    def _solve_max_tasks(self, problem: ProblemInstance, horizon: int) -> int:
+    def _solve_max_tasks(
+        self, problem: ProblemInstance, horizon: int, time_limit: float
+    ) -> int:
         model, assigned, _, _, _ = self._create_base_model(problem, horizon)
         model.Maximize(sum(assigned.values()))
 
         solver = cp_model.CpSolver()
-        if self.time_limit != float("inf"):
+        if time_limit != float("inf"):
             elapsed = time.time() - self._start_time
-            remaining = max(0.0, self.time_limit - elapsed)
+            remaining = max(0.0, time_limit - elapsed)
             solver.parameters.max_time_in_seconds = remaining
 
         status = solver.Solve(model)
@@ -119,7 +125,7 @@ class CPSolver(Solver):
         return 0
 
     def _solve_min_makespan(
-        self, problem: ProblemInstance, horizon: int, max_tasks: int
+        self, problem: ProblemInstance, horizon: int, max_tasks: int, time_limit: float
     ) -> int:
         model, assigned, _, _, end_times = self._create_base_model(problem, horizon)
 
@@ -134,9 +140,9 @@ class CPSolver(Solver):
         model.Minimize(makespan)
 
         solver = cp_model.CpSolver()
-        if self.time_limit != float("inf"):
+        if time_limit != float("inf"):
             elapsed = time.time() - self._start_time
-            remaining = max(0.0, self.time_limit - elapsed)
+            remaining = max(0.0, time_limit - elapsed)
             solver.parameters.max_time_in_seconds = remaining
 
         status = solver.Solve(model)
@@ -146,7 +152,12 @@ class CPSolver(Solver):
         return horizon
 
     def _solve_min_cost(
-        self, problem: ProblemInstance, horizon: int, max_tasks: int, min_makespan: int
+        self,
+        problem: ProblemInstance,
+        horizon: int,
+        max_tasks: int,
+        min_makespan: int,
+        time_limit: float,
     ) -> List[Assignment]:
         model, assigned, start_times, presence, end_times = self._create_base_model(
             problem, horizon
@@ -169,9 +180,9 @@ class CPSolver(Solver):
         model.Minimize(sum(total_cost))
 
         solver = cp_model.CpSolver()
-        if self.time_limit != float("inf"):
+        if time_limit != float("inf"):
             elapsed = time.time() - self._start_time
-            remaining = max(0.0, self.time_limit - elapsed)
+            remaining = max(0.0, time_limit - elapsed)
             solver.parameters.max_time_in_seconds = remaining
 
         status = solver.Solve(model)

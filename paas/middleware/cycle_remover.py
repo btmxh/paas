@@ -11,6 +11,12 @@ class CycleRemover(MapProblem):
     and any tasks that depend on them (transitively).
     """
 
+    # map_problem doesn't need change as it is called by MapProblem.run which handles time_limit passing.
+    # Wait, CycleRemover inherits from MapProblem.
+    # MapProblem.run definition in base.py ALREADY handles passing time_limit to next_runnable.
+    # So I don't need to change CycleRemover unless it overrides run.
+    # It implements map_problem.
+
     def map_problem(self, problem: ProblemInstance) -> ProblemInstance:
         tasks = problem.tasks
 

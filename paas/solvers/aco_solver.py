@@ -30,7 +30,6 @@ class ACOSolver(Solver):
         num_ants: int = 40,
         iterations: int = 100,
         q_reward: float = 1000.0,
-        time_limit: float = 10.0,
         seed: int = 8,
         time_factor: float = 1.0,
     ):
@@ -41,13 +40,6 @@ class ACOSolver(Solver):
         self.num_ants = num_ants
         self.iterations = iterations
         self.q_reward = q_reward
-        self.time_limit = (
-            time_limit  # Explicit time limit overrides derived one if manually set?
-        )
-        # Actually time_limit passed in init is redundant if set by pipeline, but useful if standalone.
-        # But Solver init sets self.time_limit = inf.
-        # Here we overwrite it with the passed value (default 10.0).
-        # This seems correct for backward compat, but if pipeline sets it later, it will overwrite this.
         self.seed = seed
 
     def _calculate_heuristic(
@@ -69,7 +61,9 @@ class ACOSolver(Solver):
         h_cost = 1.0 / (cost + 1.0)
         return (h_time**1.5) * (h_cost**0.5)
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> Schedule:
         random.seed(self.seed)
         start_time_aco = time.time()
 
@@ -97,7 +91,7 @@ class ACOSolver(Solver):
         best_global_ant: Optional[Ant] = None
 
         for it in range(self.iterations):
-            if time.time() - start_time_aco >= self.time_limit:
+            if time.time() - start_time_aco >= time_limit:
                 break
 
             ants: List[Ant] = []

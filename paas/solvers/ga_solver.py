@@ -21,7 +21,6 @@ class GASolver(Solver):
         max_population_size: int = 50,
         max_generation: int = 200,
         stuck_generation_limit: int = 50,
-        time_limit: float = 10.0,
         seed: int = 8,
         time_factor: float = 1.0,
     ):
@@ -30,7 +29,6 @@ class GASolver(Solver):
         self.max_population_size = max_population_size
         self.max_generation = max_generation
         self.stuck_generation_limit = stuck_generation_limit
-        self.time_limit = time_limit
         self.seed = seed
         self.find_neighbor_try = 100
         self.change_team_try = 100
@@ -183,7 +181,9 @@ class GASolver(Solver):
                 return new_assignments
         return None
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> Schedule:
         random.seed(self.seed)
         start_time_ga = time.time()
 
@@ -198,7 +198,7 @@ class GASolver(Solver):
 
         # Initialize population
         for _ in range(self.initial_population_size - 1):
-            if time.time() - start_time_ga > self.time_limit:
+            if time.time() - start_time_ga > time_limit:
                 break
             population.append(
                 self._generate_random_individual(problem, tasks_with_teams)
@@ -208,7 +208,7 @@ class GASolver(Solver):
         generation = 0
 
         while generation < self.max_generation and (
-            time.time() - start_time_ga < self.time_limit
+            time.time() - start_time_ga < time_limit
         ):
             population = [p for p in population if p]
             if not population:
@@ -237,7 +237,7 @@ class GASolver(Solver):
 
             # Crossover
             for _ in range(num_best):
-                if time.time() - start_time_ga > self.time_limit:
+                if time.time() - start_time_ga > time_limit:
                     break
                 if len(best_population) < 2:
                     break
@@ -250,7 +250,7 @@ class GASolver(Solver):
 
             # Mutation
             for _ in range(num_best):
-                if time.time() - start_time_ga > self.time_limit:
+                if time.time() - start_time_ga > time_limit:
                     break
                 p = random.choice(best_population)
                 mchild = self._mutate(p, problem)

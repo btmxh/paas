@@ -21,7 +21,9 @@ class GreedyMinStartTimeSolver(Solver):
     def __init__(self, time_factor: float = 1.0):
         super().__init__(time_factor)
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> Schedule:
         start_time_greedy = time.time()
         tasks = problem.tasks
         teams = problem.teams
@@ -48,7 +50,7 @@ class GreedyMinStartTimeSolver(Solver):
         )
 
         for task_id in root_task_ids:
-            if time.time() - start_time_greedy >= self.time_limit:
+            if time.time() - start_time_greedy >= time_limit:
                 break
             task = tasks[task_id]
 
@@ -77,7 +79,7 @@ class GreedyMinStartTimeSolver(Solver):
         # --- Phase 2: Schedule Remaining Tasks ---
         # Repeatedly find the best (task, team) pair among all currently valid options.
         while len(scheduled_task_ids) < len(tasks):
-            if time.time() - start_time_greedy >= self.time_limit:
+            if time.time() - start_time_greedy >= time_limit:
                 break
             global_best_start = INF
             global_best_team = -1
