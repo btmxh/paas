@@ -1,4 +1,4 @@
-name: Pre-commit + Typing lints
+name: Typecheck
 
 on:
   push:
@@ -9,14 +9,13 @@ on:
       - master
 
 jobs:
-  lint:
+  typecheck:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Run pre-commit lints
-        uses: pre-commit/action@v3.0.1
+      - name: Run typing checks
+        run: uv run --with ty ty check
