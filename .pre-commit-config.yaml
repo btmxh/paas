@@ -1,0 +1,27 @@
+repos:
+  # Nix formatting
+  - repo: https://github.com/NixOS/nixfmt
+    rev: v1.2.0
+    hooks:
+      - id: nixfmt
+
+  # Nix static analysis
+  - repo: https://github.com/oppiliappan/statix
+    rev: v0.5.8
+    hooks:
+      - id: statix
+
+  # General file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Python linting & formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.11
+    hooks:
+      - id: ruff
+      - id: ruff-format
