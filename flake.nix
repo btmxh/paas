@@ -31,8 +31,10 @@
         in
         {
           default = pkgs.mkShell {
-            inherit shellHook;
             buildInputs = enabledPackages;
+            shellHook = shellHook + ''
+              export PATH="$PWD/bin:$PATH"
+            '';
             packages =
               with pkgs;
               [

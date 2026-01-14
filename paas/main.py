@@ -14,8 +14,8 @@ def main():
         # Setup middleware pipeline
         pipeline = Pipeline(
             middlewares=[
-                CycleRemover(),
                 ImpossibleTaskRemover(),
+                CycleRemover(),
                 DependencyPruner(),
             ],
             solver=CPSolver(),
