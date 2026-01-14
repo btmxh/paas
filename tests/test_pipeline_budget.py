@@ -21,7 +21,7 @@ class SpyMiddleware(Middleware):
 
     def run(self, problem, next_runnable, time_limit=float("inf")):
         self.last_time_limit = time_limit
-        return next_runnable.run(problem)
+        return next_runnable.run(problem, time_limit=time_limit)
 
 
 class TestPipelineBudget(unittest.TestCase):
