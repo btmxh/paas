@@ -2,6 +2,6 @@
 __pycache__
 /.venv
 /.direnv
-/.pre-commit-config.yaml
+/.pre-commit-config.nix.yaml
 entry.py
 submission.py

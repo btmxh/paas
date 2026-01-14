@@ -1,4 +1,4 @@
-name: Run tests
+name: Typecheck
 
 on:
   push:
@@ -9,15 +9,13 @@ on:
       - master
 
 jobs:
-  tests:
-    name: Test
+  typecheck:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Run tests
-        run: uv run -m unittest discover tests
+      - name: Run typing checks
+        run: uv run --with ty ty check

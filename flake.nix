@@ -31,12 +31,13 @@
         in
         {
           default = pkgs.mkShell {
-            inherit shellHook;
             buildInputs = enabledPackages;
+            shellHook = shellHook + ''
+              export PATH="$PWD/bin:$PATH"
+            '';
             packages =
               with pkgs;
               [
-                (python3.withPackages (ps: [ ps.ortools ]))
                 ruff
                 ty
                 nixd
@@ -45,7 +46,6 @@
               ++ (builtins.attrValues (
                 jailed-agents.lib.${system}.makeJailedAgents {
                   extraPkgs = [
-                    (python3.withPackages (ps: [ ps.ortools ]))
                     ruff
                     ty
                     nixfmt-rfc-style
@@ -84,6 +84,7 @@
       checks = forEachSystem (system: {
         pre-commit-check = git-hooks.lib.${system}.run {
           src = ./.;
+          configPath = ".pre-commit-config.nix.yaml";
           hooks = {
             nixfmt.enable = true;
             statix.enable = true;
