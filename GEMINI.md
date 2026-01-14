@@ -5,32 +5,22 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
 ## Environment Setup
 
 - **OS:** Linux
-- **Dependency Management:** Nix with `direnv`.
-- **Tooling:** The project uses `flake.nix` and `.envrc` to manage the development environment automatically. NOTE: once the environment change, the CLI AI agent will be manually reload, the AI agent should not reload and find any new binaries by itself.
-- **Python:** Managed via `uv`.
+- **Dependency Management:** Managed via `uv` within Docker (`Dockerfile` provided).
+- **Tooling:** Nix with `direnv` is used for **tooling only** (LSPs, formatting, linting).
+- **NOTE:** The Nix environment **no longer provides a Python runtime or `uv`**. These must be accessed via Docker or an external environment.
 
 ## Development Workflow
 
-### Python Dependencies
-- **DO NOT** use `uv` anymore.
-- **DO NOT** use raw `pip` calls if possible.
-- **DO NOT** manually edit `pyproject.toml` for dependencies.
-- **DO NOT** use the modern built-in typings such as `list[T]` and `dict[K, V]`.
-  As this project maintains compatibility with Python 3.8.
-- **DO** use typings as much as possible. Typechecks will be run on CI, so avoid
-  writing typing-unsafe code as much as possible. Run `ty check` (which uses
-  Astral's new `ty` type-checker) to check the project for potential typing
-  errors.
-- **DO** run unit tests via `python3 -m unittest discover tests`
-- **DO** use the legacy types such as `list[T]` and `dict[K, V]` from the
-  `typing` module.
-- **DO** use `python3 -m paas.main` to execute the application.
-- **NOTE:** `or-tools` and other major dependencies are now managed via the `nix-shell` environment.
+### Python Execution & Dependencies
+- **NO RUNTIME:** You currently do **not** have access to a Python interpreter or `uv` in the Nix development shell.
+- **SKIP TESTS/TYPECHECKS:** Do not attempt to run `python3 -m unittest` or `ty check` locally unless a runtime environment (like Docker) is explicitly provided.
+- **Dependencies:** Managed via `pyproject.toml` and `uv.lock`. `uv` is used inside the Docker image.
+- **Typing:** Maintain compatibility with Python 3.8. Use legacy types from the `typing` module (e.g., `List[T]`, `Dict[K, V]`).
 
 ### Code Quality
-- Pre-commit checks (defined in flake.nix, which is then used to generate the .pre-commit-config.yaml file) are in place for formatting and linting. Fixable problems (formatting) are automatically fixed, so adding the new changes and rerunning `git commit` should address those.
-- If a commit fails due to these checks, ensure the issues are fixed before attempting to commit again.
-- Pushing to remote branches is handled manually by the user.
+- **Pre-commit:** Standalone configuration in `.pre-commit-config.yaml`. It runs `ruff`, `check-yaml`, and other formatters.
+- **Linting:** `ruff` is still available in the Nix environment for quick checks.
+- If a commit fails due to pre-commit checks, fix the issues and re-commit.
 
 ### Git Strategy
 - Always work on a separate feature branch, prefixed with `ai/*`.
