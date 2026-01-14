@@ -1,13 +1,12 @@
 import unittest
-from paas.middleware.base import Pipeline, Middleware
+from paas.middleware.base import Pipeline, Middleware, Solver
 from paas.models import ProblemInstance, Schedule
 from paas.time_budget import TimeBudget
 
 
-class DummySolver:
+class DummySolver(Solver):
     def __init__(self, time_factor=1.0):
-        self.time_factor = time_factor
-        self.time_limit = float("inf")
+        super().__init__(time_factor)
 
     def run(self, problem):
         return Schedule([])
@@ -41,17 +40,11 @@ class TestPipelineBudget(unittest.TestCase):
         self.assertAlmostEqual(m2.time_limit, 4.0)
         self.assertAlmostEqual(solver.time_limit, 4.0)
 
-    def test_budget_distribution_no_solver_factor(self):
+    def test_budget_distribution_default_solver(self):
         m1 = TestMiddleware(time_factor=1.0)
+        # Solver with default time_factor (1.0)
+        solver = DummySolver()
 
-        # Solver without time_factor attribute (simulate old solver or different type)
-        class OldSolver:
-            def run(self, problem):
-                return Schedule([])
-
-        solver = OldSolver()
-
-        # Pipeline logic: solver_factor defaults to 1.0 if missing
         # Total factor = 1.0 + 1.0 = 2.0
         # Budget = 10s => m1 gets 5s
 
@@ -63,6 +56,7 @@ class TestPipelineBudget(unittest.TestCase):
         pipeline.run(problem)
 
         self.assertAlmostEqual(m1.time_limit, 5.0)
+        self.assertAlmostEqual(solver.time_limit, 5.0)
 
 
 if __name__ == "__main__":

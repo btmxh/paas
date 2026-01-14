@@ -2,17 +2,16 @@ from typing import List
 import time
 from ortools.sat.python import cp_model
 from paas.models import ProblemInstance, Schedule, Assignment
-from paas.middleware.base import Runnable
+from paas.middleware.base import Solver
 
 
-class CPSolver(Runnable):
+class CPSolver(Solver):
     """
     CP-SAT solver for the Project Assignment and Scheduling problem.
     """
 
     def __init__(self, time_factor: float = 1.0):
-        self.time_factor = time_factor
-        self.time_limit: float = float("inf")
+        super().__init__(time_factor)
 
     def run(self, problem: ProblemInstance) -> Schedule:
         self._start_time = time.time()

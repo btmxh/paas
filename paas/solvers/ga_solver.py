@@ -3,10 +3,10 @@ import random
 import time
 from typing import List, Tuple, Optional
 from paas.models import ProblemInstance, Schedule, Assignment
-from paas.middleware.base import Runnable
+from paas.middleware.base import Solver
 
 
-class GASolver(Runnable):
+class GASolver(Solver):
     """
     Genetic Algorithm based solver for the Project Assignment and Scheduling (PaaS) problem.
     It optimizes:
@@ -25,13 +25,13 @@ class GASolver(Runnable):
         seed: int = 8,
         time_factor: float = 1.0,
     ):
+        super().__init__(time_factor)
         self.initial_population_size = initial_population_size
         self.max_population_size = max_population_size
         self.max_generation = max_generation
         self.stuck_generation_limit = stuck_generation_limit
         self.time_limit = time_limit
         self.seed = seed
-        self.time_factor = time_factor
         self.find_neighbor_try = 100
         self.change_team_try = 100
 

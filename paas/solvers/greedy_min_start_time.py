@@ -1,10 +1,10 @@
 import sys
 import time
 from paas.models import ProblemInstance, Schedule, Assignment
-from paas.middleware.base import Runnable
+from paas.middleware.base import Solver
 
 
-class GreedyMinStartTimeSolver(Runnable):
+class GreedyMinStartTimeSolver(Solver):
     """
     Implements a greedy scheduling strategy that prioritizes minimizing the start time of tasks.
 
@@ -19,8 +19,7 @@ class GreedyMinStartTimeSolver(Runnable):
     """
 
     def __init__(self, time_factor: float = 1.0):
-        self.time_factor = time_factor
-        self.time_limit: float = float("inf")
+        super().__init__(time_factor)
 
     def run(self, problem: ProblemInstance) -> Schedule:
         start_time_greedy = time.time()

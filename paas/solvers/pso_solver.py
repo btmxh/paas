@@ -3,7 +3,7 @@ import time
 import math
 from typing import List, Optional
 from paas.models import ProblemInstance, Schedule, Assignment
-from paas.middleware.base import Runnable
+from paas.middleware.base import Solver
 
 
 class ScheduleResult:
@@ -25,7 +25,7 @@ class Particle:
         self.best_result: Optional[ScheduleResult] = None
 
 
-class PSOSolver(Runnable):
+class PSOSolver(Solver):
     """
     Particle Swarm Optimization (PSO) based solver for the Project Assignment and Scheduling (PaaS) problem.
     """
@@ -41,6 +41,7 @@ class PSOSolver(Runnable):
         seed: int = 8,
         time_factor: float = 1.0,
     ):
+        super().__init__(time_factor)
         self.swarm_size = swarm_size
         self.max_iterations = max_iterations
         self.w = w
@@ -48,7 +49,6 @@ class PSOSolver(Runnable):
         self.c2 = c2
         self.time_limit = time_limit
         self.seed = seed
-        self.time_factor = time_factor
 
     def _decode_particle(
         self, position: List[float], problem: ProblemInstance

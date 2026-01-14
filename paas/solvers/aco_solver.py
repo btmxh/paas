@@ -2,7 +2,7 @@ import random
 import time
 from typing import List, Dict, Optional
 from paas.models import ProblemInstance, Schedule, Assignment
-from paas.middleware.base import Runnable
+from paas.middleware.base import Solver
 
 
 class Ant:
@@ -17,7 +17,7 @@ class Ant:
         self.num_scheduled = 0
 
 
-class ACOSolver(Runnable):
+class ACOSolver(Solver):
     """
     Ant Colony Optimization (ACO) based solver for the Project Assignment and Scheduling (PaaS) problem.
     """
@@ -34,15 +34,21 @@ class ACOSolver(Runnable):
         seed: int = 8,
         time_factor: float = 1.0,
     ):
+        super().__init__(time_factor)
         self.alpha = alpha
         self.beta = beta
         self.rho = rho
         self.num_ants = num_ants
         self.iterations = iterations
         self.q_reward = q_reward
-        self.time_limit = time_limit
+        self.time_limit = (
+            time_limit  # Explicit time limit overrides derived one if manually set?
+        )
+        # Actually time_limit passed in init is redundant if set by pipeline, but useful if standalone.
+        # But Solver init sets self.time_limit = inf.
+        # Here we overwrite it with the passed value (default 10.0).
+        # This seems correct for backward compat, but if pipeline sets it later, it will overwrite this.
         self.seed = seed
-        self.time_factor = time_factor
 
     def _calculate_heuristic(
         self,

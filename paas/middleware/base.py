@@ -9,6 +9,23 @@ class Runnable(Protocol):
     def run(self, problem: ProblemInstance) -> Schedule: ...
 
 
+class Solver(ABC):
+    """
+    Abstract solver class.
+    """
+
+    def __init__(self, time_factor: float = 1.0):
+        self.time_factor = time_factor
+        self.time_limit: float = float("inf")
+
+    @abstractmethod
+    def run(self, problem: ProblemInstance) -> Schedule:
+        """
+        Solve the problem and return a schedule.
+        """
+        pass
+
+
 class Middleware(ABC):
     """
     Abstract middleware class.
@@ -79,7 +96,7 @@ class Pipeline(Runnable):
     def __init__(
         self,
         middlewares: List[Middleware],
-        solver: Runnable,
+        solver: Solver,
         total_budget: Optional[TimeBudget] = None,
     ):
         self.middlewares = middlewares
@@ -89,8 +106,7 @@ class Pipeline(Runnable):
     def run(self, problem: ProblemInstance) -> Schedule:
         if self.total_budget:
             # Calculate total time factor
-            # Solvers are expected to have a time_factor attribute if budget is used
-            solver_factor = getattr(self.solver, "time_factor", 1.0)
+            solver_factor = self.solver.time_factor
             total_factor = sum(m.time_factor for m in self.middlewares) + solver_factor
 
             total_seconds = self.total_budget.duration_seconds
@@ -100,12 +116,7 @@ class Pipeline(Runnable):
                 for m in self.middlewares:
                     m.time_limit = (m.time_factor / total_factor) * total_seconds
 
-                if hasattr(self.solver, "time_limit"):
-                    setattr(
-                        self.solver,
-                        "time_limit",
-                        (solver_factor / total_factor) * total_seconds,
-                    )
+                self.solver.time_limit = (solver_factor / total_factor) * total_seconds
 
         pipeline = self.solver
         for m in reversed(self.middlewares):
