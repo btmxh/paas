@@ -21,8 +21,9 @@ class GASolver(Runnable):
         max_population_size: int = 50,
         max_generation: int = 200,
         stuck_generation_limit: int = 50,
-        time_limit: int = 10,
+        time_limit: float = 10.0,
         seed: int = 8,
+        time_factor: float = 1.0,
     ):
         self.initial_population_size = initial_population_size
         self.max_population_size = max_population_size
@@ -30,6 +31,7 @@ class GASolver(Runnable):
         self.stuck_generation_limit = stuck_generation_limit
         self.time_limit = time_limit
         self.seed = seed
+        self.time_factor = time_factor
         self.find_neighbor_try = 100
         self.change_team_try = 100
 

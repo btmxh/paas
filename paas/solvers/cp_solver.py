@@ -1,4 +1,5 @@
 from typing import List
+import time
 from ortools.sat.python import cp_model
 from paas.models import ProblemInstance, Schedule, Assignment
 from paas.middleware.base import Runnable
@@ -9,7 +10,12 @@ class CPSolver(Runnable):
     CP-SAT solver for the Project Assignment and Scheduling problem.
     """
 
+    def __init__(self, time_factor: float = 1.0):
+        self.time_factor = time_factor
+        self.time_limit: float = float("inf")
+
     def run(self, problem: ProblemInstance) -> Schedule:
+        self._start_time = time.time()
         if not problem.tasks:
             return Schedule(assignments=[])
 
@@ -102,6 +108,11 @@ class CPSolver(Runnable):
         model.Maximize(sum(assigned.values()))
 
         solver = cp_model.CpSolver()
+        if self.time_limit != float("inf"):
+            elapsed = time.time() - self._start_time
+            remaining = max(0.0, self.time_limit - elapsed)
+            solver.parameters.max_time_in_seconds = remaining
+
         status = solver.Solve(model)
 
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
@@ -124,6 +135,11 @@ class CPSolver(Runnable):
         model.Minimize(makespan)
 
         solver = cp_model.CpSolver()
+        if self.time_limit != float("inf"):
+            elapsed = time.time() - self._start_time
+            remaining = max(0.0, self.time_limit - elapsed)
+            solver.parameters.max_time_in_seconds = remaining
+
         status = solver.Solve(model)
 
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
@@ -154,6 +170,11 @@ class CPSolver(Runnable):
         model.Minimize(sum(total_cost))
 
         solver = cp_model.CpSolver()
+        if self.time_limit != float("inf"):
+            elapsed = time.time() - self._start_time
+            remaining = max(0.0, self.time_limit - elapsed)
+            solver.parameters.max_time_in_seconds = remaining
+
         status = solver.Solve(model)
 
         assignments = []

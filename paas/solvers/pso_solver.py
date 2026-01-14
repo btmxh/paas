@@ -39,6 +39,7 @@ class PSOSolver(Runnable):
         c2: float = 2.0,
         time_limit: float = 10.0,
         seed: int = 8,
+        time_factor: float = 1.0,
     ):
         self.swarm_size = swarm_size
         self.max_iterations = max_iterations
@@ -47,6 +48,7 @@ class PSOSolver(Runnable):
         self.c2 = c2
         self.time_limit = time_limit
         self.seed = seed
+        self.time_factor = time_factor
 
     def _decode_particle(
         self, position: List[float], problem: ProblemInstance

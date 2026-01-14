@@ -1,4 +1,5 @@
 import sys
+import time
 from paas.models import ProblemInstance, Schedule, Assignment
 from paas.middleware.base import Runnable
 
@@ -17,7 +18,12 @@ class GreedyMinStartTimeSolver(Runnable):
         Select the assignment that yields the global minimum start time.
     """
 
+    def __init__(self, time_factor: float = 1.0):
+        self.time_factor = time_factor
+        self.time_limit: float = float("inf")
+
     def run(self, problem: ProblemInstance) -> Schedule:
+        start_time_greedy = time.time()
         tasks = problem.tasks
         teams = problem.teams
         INF = sys.maxsize
@@ -43,6 +49,8 @@ class GreedyMinStartTimeSolver(Runnable):
         )
 
         for task_id in root_task_ids:
+            if time.time() - start_time_greedy >= self.time_limit:
+                break
             task = tasks[task_id]
 
             # Find the best team for this root task.
@@ -70,6 +78,8 @@ class GreedyMinStartTimeSolver(Runnable):
         # --- Phase 2: Schedule Remaining Tasks ---
         # Repeatedly find the best (task, team) pair among all currently valid options.
         while len(scheduled_task_ids) < len(tasks):
+            if time.time() - start_time_greedy >= self.time_limit:
+                break
             global_best_start = INF
             global_best_team = -1
             global_best_task = -1

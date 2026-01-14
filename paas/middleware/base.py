@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Protocol, List
+from typing import Protocol, List, Optional
 
 from paas.models import ProblemInstance, Schedule
+from paas.time_budget import TimeBudget
 
 
 class Runnable(Protocol):
@@ -12,6 +13,10 @@ class Middleware(ABC):
     """
     Abstract middleware class.
     """
+
+    def __init__(self, time_factor: float = 1.0):
+        self.time_factor = time_factor
+        self.time_limit: float = float("inf")
 
     @abstractmethod
     def run(self, problem: ProblemInstance, next_runnable: Runnable) -> Schedule:
@@ -71,11 +76,37 @@ class Pipeline(Runnable):
     Helper to chain multiple middlewares and a final solver.
     """
 
-    def __init__(self, middlewares: List[Middleware], solver: Runnable):
+    def __init__(
+        self,
+        middlewares: List[Middleware],
+        solver: Runnable,
+        total_budget: Optional[TimeBudget] = None,
+    ):
         self.middlewares = middlewares
         self.solver = solver
+        self.total_budget = total_budget
 
     def run(self, problem: ProblemInstance) -> Schedule:
+        if self.total_budget:
+            # Calculate total time factor
+            # Solvers are expected to have a time_factor attribute if budget is used
+            solver_factor = getattr(self.solver, "time_factor", 1.0)
+            total_factor = sum(m.time_factor for m in self.middlewares) + solver_factor
+
+            total_seconds = self.total_budget.duration_seconds
+
+            # Assign budgets
+            if total_factor > 0:
+                for m in self.middlewares:
+                    m.time_limit = (m.time_factor / total_factor) * total_seconds
+
+                if hasattr(self.solver, "time_limit"):
+                    setattr(
+                        self.solver,
+                        "time_limit",
+                        (solver_factor / total_factor) * total_seconds,
+                    )
+
         pipeline = self.solver
         for m in reversed(self.middlewares):
             pipeline = self._wrap(m, pipeline)
