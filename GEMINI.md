@@ -5,16 +5,16 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
 ## Environment Setup
 
 - **OS:** Linux
-- **Dependency Management:** Managed via `uv` within Docker (`Dockerfile` provided).
+- **Dependency Management:** Managed via `uv` within a Docker container.
 - **Tooling:** Nix with `direnv` is used for **tooling only** (LSPs, formatting, linting).
-- **NOTE:** The Nix environment **no longer provides a Python runtime or `uv`**. These must be accessed via Docker or an external environment.
+- **NOTE:** The Nix environment **no longer provides a Python runtime or `uv`**. These must be accessed via Docker: `docker run -it -v $(pwd):/app ghcr.io/astral-sh/uv:debian-slim sh`.
 
 ## Development Workflow
 
 ### Python Execution & Dependencies
 - **NO RUNTIME:** You currently do **not** have access to a Python interpreter or `uv` in the Nix development shell.
-- **SKIP TESTS/TYPECHECKS:** Do not attempt to run `python3 -m unittest` or `ty check` locally unless a runtime environment (like Docker) is explicitly provided.
-- **Dependencies:** Managed via `pyproject.toml` and `uv.lock`. `uv` is used inside the Docker image.
+- **SKIP TESTS/TYPECHECKS:** Do not attempt to run `python3 -m unittest` or `ty check` locally. In the future, rootless docker may allow running these within a container.
+- **Dependencies:** Managed via `pyproject.toml` and `uv.lock`. Use `uv` within the Docker environment mentioned above.
 - **Typing:** Maintain compatibility with Python 3.8. Use legacy types from the `typing` module (e.g., `List[T]`, `Dict[K, V]`).
 
 ### Code Quality
