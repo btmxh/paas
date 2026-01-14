@@ -27,7 +27,6 @@
             packages =
               with pkgs;
               [
-                uv
                 ruff
                 nixd
                 nixfmt-rfc-style
@@ -36,7 +35,6 @@
               ++ (builtins.attrValues (
                 jailed-agents.lib.${system}.makeJailedAgents {
                   extraPkgs = [
-                    uv
                     ruff
                     nixfmt-rfc-style
                     pre-commit
