@@ -46,7 +46,49 @@ even cause like conflicts with CI even.
 
 ---
 
-## 🏗️ Architecture
+## Submission to Hustack
+
+Since Hustack only accept one singular file for submissions, to submit code
+based on this project to the site, there exists a Python script to merge a
+file along with its dependencies. This tool is completely written by an AI,
+so it might break under certain circumstances.
+
+First, create an `entry.py` file as follows:
+```py
+from paas.middleware.base import Pipeline
+from paas.middleware.cycle_remover import CycleRemover
+from paas.middleware.dependency_pruner import DependencyPruner
+from paas.middleware.impossible_task_remover import ImpossibleTaskRemover
+from paas.parser import parse_input
+from paas.solvers.ga_solver import GASolver
+import sys
+
+
+def main():
+    instance = parse_input(sys.stdin)
+    middlewares = [
+        ImpossibleTaskRemover(),
+        CycleRemover(),
+        DependencyPruner(),
+    ]
+    pipeline = Pipeline(middlewares, GASolver())
+    solution = pipeline.run(instance)
+    solution.write(sys.stdout)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+This file uses GA to solve the problem, along with three pre-processing
+middlewares. Then, run:
+```sh
+uv run bundle.py entry.py
+```
+
+To generate a `submission.py` to be submitted to Hustack.
+
+## Architecture
 
 ### 1. Models (`paas/models.py`)
 `Task`, `Team`, `ProblemInstance`, `Schedule`. Uses Python 3.8 compatible type hints.
@@ -69,7 +111,7 @@ Two main middleware base implementations:
 
 ---
 
-## 🛠️ Contributing
+## Contributing
 
 - **New Solver**: Implement `run(problem: ProblemInstance) -> Schedule` in `paas/solvers/`.
 - **New Middleware**: Inherit from `MapProblem` or `MapResult` in `paas/middleware/base.py`.
