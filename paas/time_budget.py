@@ -22,3 +22,10 @@ class TimeBudget:
 
     def is_expired(self) -> bool:
         return self.remaining() <= 0.0
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass

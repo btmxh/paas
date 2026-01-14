@@ -1,8 +1,8 @@
 from typing import List
-import time
 from ortools.sat.python import cp_model
 from paas.models import ProblemInstance, Schedule, Assignment
 from paas.middleware.base import Solver
+from paas.time_budget import TimeBudget
 
 
 class CPSolver(Solver):
@@ -16,30 +16,32 @@ class CPSolver(Solver):
     def run(
         self, problem: ProblemInstance, time_limit: float = float("inf")
     ) -> Schedule:
-        self._start_time = time.time()
         if not problem.tasks:
             return Schedule(assignments=[])
 
-        # Heuristic for the maximum possible time
-        max_duration = sum(t.duration for t in problem.tasks.values())
-        max_start = max((t.available_from for t in problem.teams.values()), default=0)
-        horizon = max_duration + max_start + 1000
+        with TimeBudget(time_limit) as budget:
+            # Heuristic for the maximum possible time
+            max_duration = sum(t.duration for t in problem.tasks.values())
+            max_start = max(
+                (t.available_from for t in problem.teams.values()), default=0
+            )
+            horizon = max_duration + max_start + 1000
 
-        # Lexicographical optimization:
-        # 1. Maximize number of tasks
-        max_tasks = self._solve_max_tasks(problem, horizon, time_limit)
-        if max_tasks == 0:
-            return Schedule(assignments=[])
+            # Lexicographical optimization:
+            # 1. Maximize number of tasks
+            max_tasks = self._solve_max_tasks(problem, horizon, budget)
+            if max_tasks == 0:
+                return Schedule(assignments=[])
 
-        # 2. Minimize completion time
-        min_makespan = self._solve_min_makespan(problem, horizon, max_tasks, time_limit)
+            # 2. Minimize completion time
+            min_makespan = self._solve_min_makespan(problem, horizon, max_tasks, budget)
 
-        # 3. Minimize total cost
-        assignments = self._solve_min_cost(
-            problem, horizon, max_tasks, min_makespan, time_limit
-        )
+            # 3. Minimize total cost
+            assignments = self._solve_min_cost(
+                problem, horizon, max_tasks, min_makespan, budget
+            )
 
-        return Schedule(assignments=assignments)
+            return Schedule(assignments=assignments)
 
     def _create_base_model(self, problem: ProblemInstance, horizon: int):
         model = cp_model.CpModel()
@@ -107,16 +109,14 @@ class CPSolver(Solver):
         return model, assigned, start_times, presence, end_times
 
     def _solve_max_tasks(
-        self, problem: ProblemInstance, horizon: int, time_limit: float
+        self, problem: ProblemInstance, horizon: int, budget: TimeBudget
     ) -> int:
         model, assigned, _, _, _ = self._create_base_model(problem, horizon)
         model.Maximize(sum(assigned.values()))
 
         solver = cp_model.CpSolver()
-        if time_limit != float("inf"):
-            elapsed = time.time() - self._start_time
-            remaining = max(0.0, time_limit - elapsed)
-            solver.parameters.max_time_in_seconds = remaining
+        if budget.remaining() < float("inf"):
+            solver.parameters.max_time_in_seconds = budget.remaining()
 
         status = solver.Solve(model)
 
@@ -125,7 +125,7 @@ class CPSolver(Solver):
         return 0
 
     def _solve_min_makespan(
-        self, problem: ProblemInstance, horizon: int, max_tasks: int, time_limit: float
+        self, problem: ProblemInstance, horizon: int, max_tasks: int, budget: TimeBudget
     ) -> int:
         model, assigned, _, _, end_times = self._create_base_model(problem, horizon)
 
@@ -140,10 +140,8 @@ class CPSolver(Solver):
         model.Minimize(makespan)
 
         solver = cp_model.CpSolver()
-        if time_limit != float("inf"):
-            elapsed = time.time() - self._start_time
-            remaining = max(0.0, time_limit - elapsed)
-            solver.parameters.max_time_in_seconds = remaining
+        if budget.remaining() < float("inf"):
+            solver.parameters.max_time_in_seconds = budget.remaining()
 
         status = solver.Solve(model)
 
@@ -157,7 +155,7 @@ class CPSolver(Solver):
         horizon: int,
         max_tasks: int,
         min_makespan: int,
-        time_limit: float,
+        budget: TimeBudget,
     ) -> List[Assignment]:
         model, assigned, start_times, presence, end_times = self._create_base_model(
             problem, horizon
@@ -180,10 +178,8 @@ class CPSolver(Solver):
         model.Minimize(sum(total_cost))
 
         solver = cp_model.CpSolver()
-        if time_limit != float("inf"):
-            elapsed = time.time() - self._start_time
-            remaining = max(0.0, time_limit - elapsed)
-            solver.parameters.max_time_in_seconds = remaining
+        if budget.remaining() < float("inf"):
+            solver.parameters.max_time_in_seconds = budget.remaining()
 
         status = solver.Solve(model)
 
