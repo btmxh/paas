@@ -1,10 +1,4 @@
 repos:
-  # Nix formatting
-  - repo: https://github.com/NixOS/nixfmt
-    rev: v1.2.0
-    hooks:
-      - id: nixfmt
-
   # General file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
