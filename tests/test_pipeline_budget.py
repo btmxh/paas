@@ -7,7 +7,7 @@ from paas.time_budget import TimeBudget
 class SpySolver(Solver):
     def __init__(self, time_factor=1.0):
         super().__init__(time_factor)
-        self.last_time_limit = None
+        self.last_time_limit = float("nan")
 
     def run(self, problem, time_limit=float("inf")):
         self.last_time_limit = time_limit
@@ -17,7 +17,7 @@ class SpySolver(Solver):
 class SpyMiddleware(Middleware):
     def __init__(self, time_factor=1.0):
         super().__init__(time_factor)
-        self.last_time_limit = None
+        self.last_time_limit = float("nan")
 
     def run(self, problem, next_runnable, time_limit=float("inf")):
         self.last_time_limit = time_limit
