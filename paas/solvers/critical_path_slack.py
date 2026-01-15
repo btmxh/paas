@@ -10,7 +10,7 @@ class CriticalPathSlackSolver(Runnable):
     3. Versatility/Scarcity (Tie-Breaker for resource management)
     """
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(self, problem: ProblemInstance, time_limit=float("inf")) -> Schedule:
         tasks = problem.tasks
         teams = problem.teams
 
