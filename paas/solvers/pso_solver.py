@@ -1,9 +1,9 @@
 import random
-import time
 import math
 from typing import List, Optional
 from paas.models import ProblemInstance, Schedule, Assignment
-from paas.middleware.base import Runnable
+from paas.middleware.base import Solver
+from paas.time_budget import TimeBudget
 
 
 class ScheduleResult:
@@ -25,7 +25,7 @@ class Particle:
         self.best_result: Optional[ScheduleResult] = None
 
 
-class PSOSolver(Runnable):
+class PSOSolver(Solver):
     """
     Particle Swarm Optimization (PSO) based solver for the Project Assignment and Scheduling (PaaS) problem.
     """
@@ -37,15 +37,15 @@ class PSOSolver(Runnable):
         w: float = 0.4,
         c1: float = 1.5,
         c2: float = 2.0,
-        time_limit: float = 10.0,
         seed: int = 8,
+        time_factor: float = 1.0,
     ):
+        super().__init__(time_factor)
         self.swarm_size = swarm_size
         self.max_iterations = max_iterations
         self.w = w
         self.c1 = c1
         self.c2 = c2
-        self.time_limit = time_limit
         self.seed = seed
 
     def _decode_particle(
@@ -142,72 +142,76 @@ class PSOSolver(Runnable):
 
         return penalty_unscheduled + score_time + score_cost
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> Schedule:
         random.seed(self.seed)
-        start_time_pso = time.time()
 
-        dim = 2 * problem.num_tasks
-        swarm = [Particle(dim) for _ in range(self.swarm_size)]
+        with TimeBudget(time_limit) as budget:
+            dim = 2 * problem.num_tasks
+            swarm = [Particle(dim) for _ in range(self.swarm_size)]
 
-        global_best_fitness = float("inf")
-        global_best_result: Optional[ScheduleResult] = None
-        global_best_position: Optional[List[float]] = None
+            global_best_fitness = float("inf")
+            global_best_result: Optional[ScheduleResult] = None
+            global_best_position: Optional[List[float]] = None
 
-        for iteration in range(self.max_iterations):
-            if time.time() - start_time_pso >= self.time_limit:
-                break
+            for iteration in range(self.max_iterations):
+                if budget.is_expired():
+                    break
 
-            for particle in swarm:
-                # 1. Decode & Evaluate
-                result = self._decode_particle(particle.position, problem)
-                fitness = self._calculate_fitness(result, problem)
+                for particle in swarm:
+                    # 1. Decode & Evaluate
+                    result = self._decode_particle(particle.position, problem)
+                    fitness = self._calculate_fitness(result, problem)
 
-                # 2. Update Personal Best
-                if fitness < particle.best_fitness:
-                    particle.best_fitness = fitness
-                    particle.best_position = list(particle.position)
-                    particle.best_result = result
+                    # 2. Update Personal Best
+                    if fitness < particle.best_fitness:
+                        particle.best_fitness = fitness
+                        particle.best_position = list(particle.position)
+                        particle.best_result = result
 
-                # 3. Update Global Best
-                if fitness < global_best_fitness:
-                    global_best_fitness = fitness
-                    global_best_position = list(particle.position)
-                    global_best_result = result
+                    # 3. Update Global Best
+                    if fitness < global_best_fitness:
+                        global_best_fitness = fitness
+                        global_best_position = list(particle.position)
+                        global_best_result = result
 
-            if global_best_position is None:
-                continue
+                if global_best_position is None:
+                    continue
 
-            # 4. Move Particles
-            for particle in swarm:
-                for i in range(dim):
-                    r1 = random.random()
-                    r2 = random.random()
+                # 4. Move Particles
+                for particle in swarm:
+                    for i in range(dim):
+                        r1 = random.random()
+                        r2 = random.random()
 
-                    # Velocity update
-                    vel_cognitive = (
-                        self.c1
-                        * r1
-                        * (particle.best_position[i] - particle.position[i])
-                    )
-                    vel_social = (
-                        self.c2 * r2 * (global_best_position[i] - particle.position[i])
-                    )
+                        # Velocity update
+                        vel_cognitive = (
+                            self.c1
+                            * r1
+                            * (particle.best_position[i] - particle.position[i])
+                        )
+                        vel_social = (
+                            self.c2
+                            * r2
+                            * (global_best_position[i] - particle.position[i])
+                        )
 
-                    particle.velocity[i] = (
-                        (self.w * particle.velocity[i]) + vel_cognitive + vel_social
-                    )
+                        particle.velocity[i] = (
+                            (self.w * particle.velocity[i]) + vel_cognitive + vel_social
+                        )
 
-                    # Position update
-                    particle.position[i] += particle.velocity[i]
+                        # Position update
+                        particle.position[i] += particle.velocity[i]
 
-                    # Boundary clamping [0.0, 1.0]
-                    if particle.position[i] < 0.0:
-                        particle.position[i] = 0.0
-                        particle.velocity[i] *= -0.5  # Wall bounce
-                    elif particle.position[i] > 1.0:
-                        particle.position[i] = 1.0
-                        particle.velocity[i] *= -0.5  # Wall bounce
+                        # Boundary clamping [0.0, 1.0]
+                        if particle.position[i] < 0.0:
+                            particle.position[i] = 0.0
+                            particle.velocity[i] *= -0.5  # Wall bounce
+                        elif particle.position[i] > 1.0:
+                            particle.position[i] = 1.0
+                            particle.velocity[i] *= -0.5  # Wall bounce
 
-        if global_best_result:
-            return Schedule(assignments=global_best_result.assignments)
-        return Schedule(assignments=[])
+            if global_best_result:
+                return Schedule(assignments=global_best_result.assignments)
+            return Schedule(assignments=[])

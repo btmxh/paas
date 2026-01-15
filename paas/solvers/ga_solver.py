@@ -1,12 +1,12 @@
 import sys
 import random
-import time
 from typing import List, Tuple, Optional
 from paas.models import ProblemInstance, Schedule, Assignment
-from paas.middleware.base import Runnable
+from paas.middleware.base import Solver
+from paas.time_budget import TimeBudget
 
 
-class GASolver(Runnable):
+class GASolver(Solver):
     """
     Genetic Algorithm based solver for the Project Assignment and Scheduling (PaaS) problem.
     It optimizes:
@@ -21,14 +21,14 @@ class GASolver(Runnable):
         max_population_size: int = 50,
         max_generation: int = 200,
         stuck_generation_limit: int = 50,
-        time_limit: int = 10,
         seed: int = 8,
+        time_factor: float = 1.0,
     ):
+        super().__init__(time_factor)
         self.initial_population_size = initial_population_size
         self.max_population_size = max_population_size
         self.max_generation = max_generation
         self.stuck_generation_limit = stuck_generation_limit
-        self.time_limit = time_limit
         self.seed = seed
         self.find_neighbor_try = 100
         self.change_team_try = 100
@@ -181,113 +181,143 @@ class GASolver(Runnable):
                 return new_assignments
         return None
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> Schedule:
         random.seed(self.seed)
-        start_time_ga = time.time()
 
         tasks_with_teams = [
             tid for tid, task in problem.tasks.items() if task.compatible_teams
         ]
+
         if not tasks_with_teams:
             return Schedule(assignments=[])
 
-        best_assignments = self._generate_random_individual(problem, tasks_with_teams)
-        population = [best_assignments]
-
-        # Initialize population
-        for _ in range(self.initial_population_size - 1):
-            if time.time() - start_time_ga > self.time_limit:
-                break
-            population.append(
-                self._generate_random_individual(problem, tasks_with_teams)
+        with TimeBudget(time_limit) as budget:
+            best_assignments = self._generate_random_individual(
+                problem, tasks_with_teams
             )
 
-        stuck_generation = 0
-        generation = 0
+            population = [best_assignments]
 
-        while generation < self.max_generation and (
-            time.time() - start_time_ga < self.time_limit
-        ):
-            population = [p for p in population if p]
-            if not population:
-                break
+            # Initialize population
 
-            # Evaluate and sort
-            population.sort(
-                key=lambda x: self._evaluate(x, problem),
-                reverse=False,  # We want to maximize count, minimize time, minimize cost
-            )
-            # wait, _evaluate returns (count, time, cost).
-            # To sort correctly: count DESC, time ASC, cost ASC.
-            # Python's sort is ascending. So we use a key that negates count.
-            population.sort(
-                key=lambda x: (
-                    -self._evaluate(x, problem)[0],
-                    self._evaluate(x, problem)[1],
-                    self._evaluate(x, problem)[2],
+            for _ in range(self.initial_population_size - 1):
+                if budget.is_expired():
+                    break
+
+                population.append(
+                    self._generate_random_individual(problem, tasks_with_teams)
                 )
-            )
 
-            num_best = max(len(population) // 2, 2)
-            best_population = population[:num_best]
+            stuck_generation = 0
 
-            new_pop = list(population)
+            generation = 0
 
-            # Crossover
-            for _ in range(num_best):
-                if time.time() - start_time_ga > self.time_limit:
+            while generation < self.max_generation and not budget.is_expired():
+                population = [p for p in population if p]
+
+                if not population:
                     break
-                if len(best_population) < 2:
-                    break
-                p1, p2 = random.sample(best_population, 2)
-                c1, c2 = self._crossover(p1, p2, problem)
-                if c1:
-                    new_pop.append(c1)
-                if c2:
-                    new_pop.append(c2)
 
-            # Mutation
-            for _ in range(num_best):
-                if time.time() - start_time_ga > self.time_limit:
-                    break
-                p = random.choice(best_population)
-                mchild = self._mutate(p, problem)
-                if mchild:
-                    new_pop.append(mchild)
+                # Evaluate and sort
 
-            population = new_pop
-
-            # Update best
-            prev_best_eval = self._evaluate(best_assignments, problem)
-
-            # Combine current population and previous best to find the new best
-            all_candidates = population + [best_assignments]
-            all_candidates = [p for p in all_candidates if p]
-            all_candidates.sort(
-                key=lambda x: (
-                    -self._evaluate(x, problem)[0],
-                    self._evaluate(x, problem)[1],
-                    self._evaluate(x, problem)[2],
+                population.sort(
+                    key=lambda x: self._evaluate(x, problem),
+                    reverse=False,  # We want to maximize count, minimize time, minimize cost
                 )
-            )
 
-            if all_candidates:
-                best_assignments = all_candidates[0]
+                # wait, _evaluate returns (count, time, cost).
 
-            current_best_eval = self._evaluate(best_assignments, problem)
+                # To sort correctly: count DESC, time ASC, cost ASC.
 
-            if current_best_eval == prev_best_eval:
-                stuck_generation += 1
-            else:
-                stuck_generation = 0
+                # Python's sort is ascending. So we use a key that negates count.
 
-            if stuck_generation >= self.stuck_generation_limit:
-                break
+                population.sort(
+                    key=lambda x: (
+                        -self._evaluate(x, problem)[0],
+                        self._evaluate(x, problem)[1],
+                        self._evaluate(x, problem)[2],
+                    )
+                )
 
-            # Trim population
-            if len(population) > self.max_population_size:
-                population = random.sample(population, self.initial_population_size)
+                num_best = max(len(population) // 2, 2)
 
-            generation += 1
+                best_population = population[:num_best]
 
-        return Schedule(assignments=best_assignments)
+                new_pop = list(population)
+
+                # Crossover
+
+                for _ in range(num_best):
+                    if budget.is_expired():
+                        break
+
+                    if len(best_population) < 2:
+                        break
+
+                    p1, p2 = random.sample(best_population, 2)
+
+                    c1, c2 = self._crossover(p1, p2, problem)
+
+                    if c1:
+                        new_pop.append(c1)
+
+                    if c2:
+                        new_pop.append(c2)
+
+                # Mutation
+
+                for _ in range(num_best):
+                    if budget.is_expired():
+                        break
+
+                    p = random.choice(best_population)
+
+                    mchild = self._mutate(p, problem)
+
+                    if mchild:
+                        new_pop.append(mchild)
+
+                population = new_pop
+
+                # Update best
+
+                prev_best_eval = self._evaluate(best_assignments, problem)
+
+                # Combine current population and previous best to find the new best
+
+                all_candidates = population + [best_assignments]
+
+                all_candidates = [p for p in all_candidates if p]
+
+                all_candidates.sort(
+                    key=lambda x: (
+                        -self._evaluate(x, problem)[0],
+                        self._evaluate(x, problem)[1],
+                        self._evaluate(x, problem)[2],
+                    )
+                )
+
+                if all_candidates:
+                    best_assignments = all_candidates[0]
+
+                current_best_eval = self._evaluate(best_assignments, problem)
+
+                if current_best_eval == prev_best_eval:
+                    stuck_generation += 1
+
+                else:
+                    stuck_generation = 0
+
+                if stuck_generation >= self.stuck_generation_limit:
+                    break
+
+                # Trim population
+
+                if len(population) > self.max_population_size:
+                    population = random.sample(population, self.initial_population_size)
+
+                generation += 1
+
+            return Schedule(assignments=best_assignments)

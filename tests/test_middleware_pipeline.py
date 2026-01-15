@@ -3,7 +3,7 @@ from paas.models import Task, ProblemInstance, Schedule, Team
 from paas.middleware.cycle_remover import CycleRemover
 from paas.middleware.impossible_task_remover import ImpossibleTaskRemover
 from paas.middleware.dependency_pruner import DependencyPruner
-from paas.middleware.base import Pipeline
+from paas.middleware.base import Pipeline, Solver
 
 
 class TestMiddlewarePipeline(unittest.TestCase):
@@ -93,10 +93,12 @@ class TestMiddlewarePipeline(unittest.TestCase):
 
         # This middleware should remove task 1
         class CheckProblemRunnable:
-            def __init__(self, expected_count):
+            def __init__(self, expected_count: int):
                 self.expected_count = expected_count
 
-            def run(self, problem: ProblemInstance) -> Schedule:
+            def run(
+                self, problem: ProblemInstance, time_limit=float("inf")
+            ) -> Schedule:
                 if len(problem.tasks) != self.expected_count:
                     raise ValueError(
                         f"Expected {self.expected_count} tasks, got {len(problem.tasks)}"
@@ -108,8 +110,10 @@ class TestMiddlewarePipeline(unittest.TestCase):
         self.assertIsInstance(result, Schedule)
 
     def test_pipeline_class(self):
-        class MockSolver:
-            def run(self, problem: ProblemInstance) -> Schedule:
+        class MockSolver(Solver):
+            def run(
+                self, problem: ProblemInstance, time_limit=float("inf")
+            ) -> Schedule:
                 return Schedule(assignments=[])
 
         t1 = self.create_task(1, succs=[1])  # Cycle
