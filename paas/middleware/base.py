@@ -34,7 +34,7 @@ class Middleware(ABC):
     Abstract middleware class.
     """
 
-    def __init__(self, time_factor: float = 1.0):
+    def __init__(self, time_factor: float = 0.0):
         self.time_factor = time_factor
 
     @abstractmethod
