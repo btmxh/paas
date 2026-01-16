@@ -73,7 +73,7 @@ def main():
     ]
     pipeline = Pipeline(middlewares, GASolver())
     solution = pipeline.run(instance)
-    solution.write(sys.stdout)
+    solution.print()
 
 
 if __name__ == "__main__":

@@ -36,3 +36,8 @@ class Assignment:
 @dataclass
 class Schedule:
     assignments: List[Assignment]
+
+    def print(self):
+        print(len(self.assignments))
+        for assignment in self.assignments:
+            print(f"{assignment.task_id} {assignment.team_id} {assignment.start_time}")
