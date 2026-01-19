@@ -1,7 +1,7 @@
 import sys
 import random
 from dataclasses import dataclass
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Optional
 from paas.models import ProblemInstance, Schedule, Assignment
 from paas.middleware.base import Solver
 from paas.time_budget import TimeBudget
@@ -332,7 +332,6 @@ class GASolver(Solver):
         self, p1: Individual, p2: Individual
     ) -> Tuple[Individual, Individual]:
         # Order crossover
-        n_order = len(p1.task_order)
         # Using the same logic as before but adapted for class methods if needed,
         # or just inline/helper.
 
