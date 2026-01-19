@@ -1,9 +1,8 @@
+from statistics import mean
 from sys import stderr, stdout
 from paas.middleware import (
     ContinuousIndexer,
-    GAMiddleware,
     HillClimbingMiddleware,
-    TabuSearchMiddleware,
 )
 from paas.solvers import GreedyMinStartTimeSolver
 import json
@@ -12,7 +11,7 @@ import concurrent.futures
 from typing import Dict, Any, Callable
 
 from paas.dataset import Dataset, Instance
-from paas.grader import grade_schedule, JuryNormalizer
+from paas.grader import grade_schedule, OptimalGapNormalizer
 
 from paas.middleware.base import Pipeline
 from paas.middleware.cycle_remover import CycleRemover
@@ -33,12 +32,12 @@ def run_single_experiment(
         score = grade_schedule(instance.problem, schedule)
 
         jury_score = None
-        if instance.sample_solution_result:
+        if instance.optimal_solution_result:
             jury_score = grade_schedule(
-                instance.problem, instance.sample_solution_result
+                instance.problem, instance.optimal_solution_result
             )
 
-        normalizer = JuryNormalizer()
+        normalizer = OptimalGapNormalizer()
         normalized_scores = normalizer.normalize(score, instance.problem, jury_score)
 
         return {
@@ -67,9 +66,9 @@ def new_pipeline() -> Pipeline:
             CycleRemover(),
             DependencyPruner(),
             ContinuousIndexer(),
-            GAMiddleware(),
+            # GAMiddleware(),
             HillClimbingMiddleware(),
-            TabuSearchMiddleware(),
+            # TabuSearchMiddleware(),
         ],
         solver=GreedyMinStartTimeSolver(),
     )
@@ -79,7 +78,7 @@ def main():
     dataset = Dataset.hustack()
     results = []
 
-    time_limit = 60  # seconds
+    time_limit = 5  # seconds
 
     print(f"Running experiments on {len(dataset.instances)} instances.", file=stderr)
     print(f"Time limit per run: {time_limit}s", file=stderr)
@@ -116,6 +115,34 @@ def main():
                 print(f"[{inst_id}] generated an exception: {exc}", file=stderr)
 
     results.sort(key=lambda x: x["instance"])
+
+    # Aggregate results
+    total_instances = len(results)
+    successful_instances = sum(1 for r in results if r["status"] == "success")
+    print(
+        f"Completed {successful_instances}/{total_instances} instances successfully.",
+        file=stderr,
+    )
+
+    avg_tasks_gap = mean(
+        r["normalized"].get("tasks_gap", 0) for r in results if r["status"] == "success"
+    )
+    avg_makespan_gap = mean(
+        max(r["normalized"].get("makespan_gap", 0), 0.0)
+        for r in results
+        if r["status"] == "success"
+    )
+    avg_cost_gap = mean(
+        max(r["normalized"].get("cost_gap", 0), 0.0)
+        for r in results
+        if r["status"] == "success"
+    )
+
+    print(
+        f"Average Gaps - Tasks: {avg_tasks_gap:.4f}, Makespan: {avg_makespan_gap:.4f}, Cost: {avg_cost_gap:.4f}",
+        file=stderr,
+    )
+
     # Dump results
     # output_file = "results.json"
     # with open(output_file, "w") as f:
