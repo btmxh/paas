@@ -1,12 +1,14 @@
+from io import StringIO
 import ast
 import sys
+import argparse
 from pathlib import Path
-from typing import Set, List, Tuple
+from typing import Set, List, Tuple, Dict, Optional
 
 # Configuration
 ROOT_DIR = Path(__file__).parent.resolve()
 PACKAGE_NAME = "paas"
-OUTPUT_FILE = ROOT_DIR / "submission.py"
+DEFAULT_OUTPUT_FILE = ROOT_DIR / "submission.py"
 
 
 def find_imports(file_path: Path) -> List[Tuple[str, int]]:
@@ -33,11 +35,13 @@ def find_imports(file_path: Path) -> List[Tuple[str, int]]:
     return imports
 
 
-def resolve_module(current_file: Path, module_name: str, level: int) -> Path:
+def resolve_module(current_file: Path, module_name: Optional[str], level: int) -> Path:
     """
     Resolves a module import to a file path.
     """
     if level == 0:
+        if not module_name:
+            raise ValueError("Absolute import must have a module name")
         # Absolute import e.g. paas.models
         parts = module_name.split(".")
         # parts[0] is 'paas', which maps to ROOT_DIR/paas
@@ -63,9 +67,58 @@ def resolve_module(current_file: Path, module_name: str, level: int) -> Path:
     if (candidate / "__init__.py").exists():
         return candidate / "__init__.py"
 
+    # It might be a directory without __init__.py (namespace pkg), but purely for file resolution
+    # we assume standard packages.
+    # Check if it's the package dir itself (e.g. "paas")
+    if (
+        candidate.exists()
+        and candidate.is_dir()
+        and (candidate / "__init__.py").exists()
+    ):
+        return candidate / "__init__.py"
+
     raise FileNotFoundError(
         f"Could not resolve module {module_name} (level {level}) from {current_file}"
     )
+
+
+def get_package_exports(init_path: Path) -> Dict[str, Path]:
+    """
+    Parses an __init__.py file and attempts to map exported names to source files.
+    Returns a dict: name -> source_file_path.
+    """
+    exports = {}
+    try:
+        with open(init_path, "r", encoding="utf-8") as f:
+            tree = ast.parse(f.read(), filename=str(init_path))
+    except Exception as e:
+        print(f"Warning: Failed to parse {init_path} for exports: {e}")
+        return {}
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            # Handle: from .module import Name
+            # Handle: from . import module
+
+            # Determine source module path
+            try:
+                source_path = resolve_module(init_path, node.module, node.level)
+            except FileNotFoundError:
+                continue
+
+            for alias in node.names:
+                name = alias.asname or alias.name
+                if alias.name == "*":
+                    # Wildcard import re-export - hard to track without parsing source.
+                    # Ignore for now, or could map "*" -> source_path (special handling needed)
+                    continue
+
+                # If we imported a module (from . import module), then 'module' is the name
+                # If we imported a symbol (from .module import Symbol), then 'Symbol' is the name
+                # In both cases, source_path points to the file defining it.
+                exports[name] = source_path
+
+    return exports
 
 
 def get_dependencies(file_path: Path) -> List[Path]:
@@ -79,10 +132,53 @@ def get_dependencies(file_path: Path) -> List[Path]:
                 if alias.name.startswith(PACKAGE_NAME):
                     deps.append(resolve_module(file_path, alias.name, 0))
         elif isinstance(node, ast.ImportFrom):
-            if node.module and node.module.startswith(PACKAGE_NAME):
-                deps.append(resolve_module(file_path, node.module, 0))
-            elif node.module and node.level > 0:
-                deps.append(resolve_module(file_path, node.module, node.level))
+            target_path = None
+            try:
+                if node.module and node.module.startswith(PACKAGE_NAME):
+                    target_path = resolve_module(file_path, node.module, 0)
+                elif node.level > 0:
+                    target_path = resolve_module(file_path, node.module, node.level)
+            except FileNotFoundError as e:
+                print(f"Warning: {e}")
+                continue
+
+            if target_path and target_path.name == "__init__.py":
+                # Smart resolution: try to bypass __init__.py if we can find sources for all names
+                exports = get_package_exports(target_path)
+                resolved_files = set()
+                all_resolved = True
+
+                for alias in node.names:
+                    if alias.name == "*":
+                        all_resolved = False
+                        break
+
+                    if alias.name in exports:
+                        resolved_files.add(exports[alias.name])
+                    else:
+                        # Check if alias.name is a submodule (e.g. from paas.middleware import base)
+                        # target_path is paas/middleware/__init__.py
+                        # Check paas/middleware/base.py
+                        possible_submodule = target_path.parent / f"{alias.name}.py"
+                        if possible_submodule.exists():
+                            resolved_files.add(possible_submodule)
+                        else:
+                            possible_pkg = (
+                                target_path.parent / alias.name / "__init__.py"
+                            )
+                            if possible_pkg.exists():
+                                resolved_files.add(possible_pkg)
+                            else:
+                                all_resolved = False
+                                break
+
+                if all_resolved and resolved_files:
+                    deps.extend(list(resolved_files))
+                else:
+                    # Fallback to including the whole package
+                    deps.append(target_path)
+            elif target_path:
+                deps.append(target_path)
 
     return list(set(deps))
 
@@ -135,8 +231,6 @@ def is_main_check(node: ast.AST) -> bool:
 
     comp = test.comparators[0]
     if isinstance(comp, ast.Constant) and comp.value == "__main__":
-        return True
-    if isinstance(comp, ast.Str) and comp.s == "__main__":  # Legacy Python
         return True
 
     return False
@@ -222,11 +316,25 @@ def collect_stdlib_imports(files: List[Path]) -> Set[str]:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python bundle.py <entry_point>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Bundle the project into a single Python file."
+    )
+    parser.add_argument(
+        "entry_point", help="The entry point script (e.g., paas/main.py)"
+    )
+    parser.add_argument(
+        "--minify", action="store_true", help="Apply minification to the bundled output"
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT_FILE,
+        help=f"Output file path (default: {DEFAULT_OUTPUT_FILE})",
+    )
+    args = parser.parse_args()
 
-    entry_point = Path(sys.argv[1]).resolve()
+    entry_point = Path(args.entry_point).resolve()
     if not entry_point.exists():
         print(f"Entry point {entry_point} not found")
         sys.exit(1)
@@ -240,26 +348,50 @@ def main():
 
     stdlib_imports = collect_stdlib_imports(files)
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
-        out.write("# MERGED SUBMISSION FILE\n")
-        out.write("# Generated by bundle.py\n\n")
+    # Bundle and write to output
+    out = StringIO()
+    out.write("# MERGED SUBMISSION FILE\n")
+    out.write("# Generated by bundle.py\n\n")
 
-        # Write stdlib imports
-        sorted_imports = sorted(list(stdlib_imports))
-        for imp in sorted_imports:
-            out.write(imp + "\n")
-        out.write("\n")
+    # Write stdlib imports
+    sorted_imports = sorted(list(stdlib_imports))
+    for imp in sorted_imports:
+        out.write(imp + "\n")
+    out.write("\n")
 
-        # Write file contents
-        for f in files:
-            out.write(f"# --- {f.relative_to(ROOT_DIR)} ---\n")
-            # Only keep main block for the entry point
-            keep_main = f == entry_point
-            content = clean_content(f, keep_main=keep_main)
-            out.write(content)
-            out.write("\n\n")
+    # Write file contents
+    for f in files:
+        out.write(f"# --- {f.relative_to(ROOT_DIR)} ---\n")
+        # Only keep main block for the entry point
+        keep_main = f == entry_point
+        content = clean_content(f, keep_main=keep_main)
+        out.write(content)
+        out.write("\n\n")
 
-    print(f"Wrote merged file to {OUTPUT_FILE}")
+    final_content = out.getvalue()
+
+    if args.minify:
+        print("Minifying bundled output...")
+        try:
+            from python_minifier import minify
+        except ImportError:
+            print(
+                "Error: python-minifier not found. Please install it to use --minify."
+            )
+            sys.exit(1)
+
+        final_content = minify(
+            final_content,
+            remove_literal_statements=True,
+            rename_locals=True,
+            combine_imports=True,
+            remove_annotations=True,
+        )
+
+    with open(args.output, "w", encoding="utf-8") as f_out:
+        f_out.write(final_content)
+
+    print(f"Wrote merged file to {args.output}")
 
 
 if __name__ == "__main__":

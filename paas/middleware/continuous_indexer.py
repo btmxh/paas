@@ -1,8 +1,29 @@
 from sys import stderr
-from typing import Dict
+from typing import Dict, Iterable
 
 from paas.middleware.base import Middleware, Runnable
 from paas.models import ProblemInstance, Schedule, Task, Assignment
+
+
+class ContinuousIndexMap:
+    def __init__(self, indices: Iterable[int]):
+        self.old_to_new: Dict[int, int] = {}
+        self.new_to_old: Dict[int, int] = {}
+        for new_id, old_id in enumerate(sorted(indices)):
+            self.old_to_new[old_id] = new_id
+            self.new_to_old[new_id] = old_id
+
+    def to_continuous(self, old_id: int) -> int:
+        return self.old_to_new[old_id]
+
+    def from_continuous(self, new_id: int) -> int:
+        return self.new_to_old[new_id]
+
+    def __contains__(self, old_id: int) -> bool:
+        return old_id in self.old_to_new
+
+    def __len__(self) -> int:
+        return len(self.old_to_new)
 
 
 class ContinuousIndexer(Middleware):
@@ -19,39 +40,41 @@ class ContinuousIndexer(Middleware):
         next_runnable: Runnable,
         time_limit: float = float("inf"),
     ) -> Schedule:
-        # 1. Create mappings
-        # Sort keys to ensure deterministic mapping
-        original_ids = sorted(problem.tasks.keys())
-        old_to_new = {old_id: new_id for new_id, old_id in enumerate(original_ids)}
-        new_to_old = {new_id: old_id for new_id, old_id in enumerate(original_ids)}
+        task_ids = ContinuousIndexMap(problem.tasks.keys())
+        team_ids = ContinuousIndexMap([team.id for team in problem.teams.values()])
 
-        # 2. Create new ProblemInstance
         new_tasks: Dict[int, Task] = {}
-        for old_id in original_ids:
-            original_task = problem.tasks[old_id]
-            new_id = old_to_new[old_id]
+        for old_id, old_task in problem.tasks.items():
+            new_id = task_ids.to_continuous(old_id)
 
             # Remap dependencies
             # We filter out dependencies that are not in the current problem
             # (though they ideally shouldn't exist if problem is consistent)
             new_predecessors = [
-                old_to_new[p] for p in original_task.predecessors if p in old_to_new
+                task_ids.to_continuous(p)
+                for p in old_task.predecessors
+                if p in task_ids
             ]
             new_successors = [
-                old_to_new[s] for s in original_task.successors if s in old_to_new
+                task_ids.to_continuous(s) for s in old_task.successors if s in task_ids
             ]
+            compatible_teams = {
+                team_ids.to_continuous(tid): cost
+                for tid, cost in old_task.compatible_teams.items()
+                if tid in team_ids
+            }
 
             new_task = Task(
                 id=new_id,
-                duration=original_task.duration,
+                duration=old_task.duration,
                 predecessors=new_predecessors,
                 successors=new_successors,
-                compatible_teams=original_task.compatible_teams.copy(),
+                compatible_teams=compatible_teams,
             )
             new_tasks[new_id] = new_task
 
         print(
-            f"ContinuousIndexer: Remapped {len(original_ids)} tasks to continuous indices.",
+            f"ContinuousIndexer: Remapped {len(new_tasks)} tasks to continuous indices.",
             file=stderr,
         )
 
@@ -59,7 +82,7 @@ class ContinuousIndexer(Middleware):
             num_tasks=len(new_tasks),
             num_teams=problem.num_teams,
             tasks=new_tasks,
-            teams=problem.teams,  # Teams are not modified
+            teams={team_ids.to_continuous(t.id): t for t in problem.teams.values()},
         )
 
         # 3. Run next runnable
@@ -74,19 +97,20 @@ class ContinuousIndexer(Middleware):
         new_assignments = []
         for assignment in schedule.assignments:
             # Task IDs in assignment are new IDs
-            if assignment.task_id in new_to_old:
-                original_id = new_to_old[assignment.task_id]
+            if assignment.task_id in task_ids.new_to_old:
+                original_id = task_ids.from_continuous(assignment.task_id)
+                original_team_id = team_ids.from_continuous(assignment.team_id)
                 new_assignments.append(
                     Assignment(
                         task_id=original_id,
-                        team_id=assignment.team_id,
+                        team_id=original_team_id,
                         start_time=assignment.start_time,
                     )
                 )
             else:
-                # This could happen if the solver returns IDs that were not in the problem
-                # (e.g. if it invented tasks). We just ignore or pass through?
-                # Safest is to ignore or log warning. Here we ignore.
-                pass
+                print(
+                    f"Warning: Assignment for unknown task ID {assignment.task_id} ignored.",
+                    file=stderr,
+                )
 
         return Schedule(assignments=new_assignments)

@@ -10,7 +10,9 @@ class DependencyPruner(MapProblem):
     and cleans up stale references in adjacency lists.
     """
 
-    def map_problem(self, problem: ProblemInstance) -> ProblemInstance:
+    def map_problem(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> ProblemInstance:
         tasks = problem.tasks
 
         # 1. Identify tasks with missing predecessors

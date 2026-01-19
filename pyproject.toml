@@ -7,3 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
     "ortools>=9.14.6206",
 ]
+
+[dependency-groups]
+dev = [
+    "python-minifier>=3.2.0",
+]

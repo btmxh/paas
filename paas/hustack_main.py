@@ -1,6 +1,11 @@
 from sys import stderr, stdout
-from paas.middleware import ContinuousIndexer
-from paas.solvers import CPSolver
+from paas.middleware import (
+    ContinuousIndexer,
+    GAMiddleware,
+    HillClimbingMiddleware,
+    TabuSearchMiddleware,
+)
+from paas.solvers import GreedyMinStartTimeSolver
 import json
 import time
 import concurrent.futures
@@ -62,8 +67,11 @@ def new_pipeline() -> Pipeline:
             CycleRemover(),
             DependencyPruner(),
             ContinuousIndexer(),
+            GAMiddleware(),
+            HillClimbingMiddleware(),
+            TabuSearchMiddleware(),
         ],
-        solver=CPSolver(),
+        solver=GreedyMinStartTimeSolver(),
     )
 
 
@@ -71,7 +79,7 @@ def main():
     dataset = Dataset.hustack()
     results = []
 
-    time_limit = float("inf")  # seconds
+    time_limit = 60  # seconds
 
     print(f"Running experiments on {len(dataset.instances)} instances.", file=stderr)
     print(f"Time limit per run: {time_limit}s", file=stderr)

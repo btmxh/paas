@@ -122,8 +122,16 @@ dependencies = [
     { name = "ortools" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "python-minifier" },
+]
+
 [package.metadata]
 requires-dist = [{ name = "ortools", specifier = ">=9.14.6206" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "python-minifier", specifier = ">=3.2.0" }]
 
 [[package]]
 name = "pandas"
@@ -196,6 +204,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3", size = 342432, upload-time = "2024-03-01T18:36:20.211Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427", size = 229892, upload-time = "2024-03-01T18:36:18.57Z" },
+]
+
+[[package]]
+name = "python-minifier"
+version = "3.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/65/984ccfc140c6a9364331fe8cbeccc4138bd4083b165c7685998c07586f84/python_minifier-3.2.0.tar.gz", hash = "sha256:d39d4aa9655206870b89b41099a84725e1845319aa5a8bea6a1046b5644cd413", size = 85512, upload-time = "2025-12-31T19:50:01.173Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/05/c26bcd42c9134b4d3919ddbabf8de323004e89355c1b0ce87d1be65fdd1d/python_minifier-3.2.0-py3-none-any.whl", hash = "sha256:b8486b1dc15980d1d833f72a8a8696616a611f1a10fb72aaf96e2de891beb4c2", size = 62345, upload-time = "2025-12-31T19:49:59.639Z" },
 ]
 
 [[package]]

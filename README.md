@@ -55,13 +55,14 @@ so it might break under certain circumstances.
 
 First, create an `entry.py` file as follows:
 ```py
-from paas.middleware import ContinuousIndexer
 from paas.middleware.base import Pipeline
 from paas.middleware.cycle_remover import CycleRemover
 from paas.middleware.dependency_pruner import DependencyPruner
 from paas.middleware.impossible_task_remover import ImpossibleTaskRemover
+from paas.middleware.continuous_indexer import ContinuousIndexer
+from paas.middleware.ga_search import GAMiddleware
 from paas.parser import parse_input
-from paas.solvers import CPSolver
+from paas.solvers.ga_greedy import GAGreedySolver
 import sys
 
 
@@ -72,15 +73,12 @@ def main():
         CycleRemover(),
         DependencyPruner(),
         ContinuousIndexer(),
+        GAMiddleware(),
     ]
     # avoid checking when submitting to Hustack
-    pipeline = Pipeline(middlewares, CPSolver(), check=False)
+    pipeline = Pipeline(middlewares, GAGreedySolver(), check=False)
     solution = pipeline.run(instance)
     solution.print()
-
-
-if __name__ == "__main__":
-    main()
 ```
 
 This file uses GA to solve the problem, along with three pre-processing
@@ -100,7 +98,8 @@ To generate a `submission.py` to be submitted to Hustack.
 Any class with `run(problem) -> Schedule`.
 - `CPSolver`: Optimal (OR-Tools).
 - `GreedyMinStartTimeSolver`: Fast heuristic.
-- `ACOSolver`, `PSOSolver`, `GASolver`: Metaheuristics.
+- `ACOSolver`, `PSOSolver`: Metaheuristics.
+- `GAGreedySolver`, `TabuGreedySolver`: Greedy constructive heuristics (optimized).
 
 ### 3. Middlewares (`paas/middleware/`)
 Preprocessing and postprocessing layers. **Order is critical.**
@@ -110,7 +109,10 @@ Two main middleware base implementations:
   1. `CycleRemover`: Breaks dependency cycles.
   2. `ImpossibleTaskRemover`: Removes tasks no team can do.
   3. `DependencyPruner`: Cleans up tasks whose predecessors were removed in previous steps.
+  4. `ContinuousIndexer`: Re-indexes tasks/teams to 0..N-1 for optimized solvers.
 - `MapResult`: improve a solution further (e.g. local search)
+  - `GAMiddleware`: Genetic Algorithm refinement.
+  - `TabuSearchMiddleware`: Tabu Search refinement.
 
 ---
 
