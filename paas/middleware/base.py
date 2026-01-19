@@ -64,11 +64,13 @@ class MapProblem(Middleware):
         next_runnable: Runnable,
         time_limit: float = float("inf"),
     ) -> Schedule:
-        new_problem = self.map_problem(problem)
-        return next_runnable.run(new_problem)
+        new_problem = self.map_problem(problem, time_limit=time_limit)
+        return next_runnable.run(new_problem, time_limit=time_limit)
 
     @abstractmethod
-    def map_problem(self, problem: ProblemInstance) -> ProblemInstance:
+    def map_problem(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> ProblemInstance:
         """
         Transform the problem instance.
         """
@@ -87,11 +89,16 @@ class MapResult(Middleware):
         next_runnable: Runnable,
         time_limit: float = float("inf"),
     ) -> Schedule:
-        result = next_runnable.run(problem)
-        return self.map_result(problem, result)
+        result = next_runnable.run(problem, time_limit=time_limit)
+        return self.map_result(problem, result, time_limit=time_limit)
 
     @abstractmethod
-    def map_result(self, problem: ProblemInstance, result: Schedule) -> Schedule:
+    def map_result(
+        self,
+        problem: ProblemInstance,
+        result: Schedule,
+        time_limit: float = float("inf"),
+    ) -> Schedule:
         """
         Refine the result.
         """

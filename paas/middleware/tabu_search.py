@@ -240,16 +240,14 @@ class TabuSearchMiddleware(MapResult):
             return False
         return tabu_list[move] > current_iter
 
-    def run(
+    def map_result(
         self,
         problem: ProblemInstance,
-        next_runnable,
+        result: Schedule,
         time_limit: float = float("inf"),
     ) -> Schedule:
         self._preprocess(problem)
         random.seed(self.seed)
-
-        result = next_runnable.run(problem, time_limit=time_limit)
 
         if not self.tasks_with_teams:
             return result
@@ -327,6 +325,3 @@ class TabuSearchMiddleware(MapResult):
                     }
 
         return Schedule(assignments=self._decode(best))
-
-    def map_result(self, problem: ProblemInstance, result: Schedule) -> Schedule:
-        return result

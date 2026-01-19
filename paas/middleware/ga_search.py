@@ -86,33 +86,18 @@ class GAMiddleware(MapResult):
         """
         Convert a Schedule object back into an Individual.
         """
-        # team_assignment: size N, index=task_id, value=team_idx
         team_assignment = [0] * self.num_tasks
-
-        # We need to reconstruct the team assignments.
-        # schedule.assignments uses team_id (which might be 0..M-1 if using ContinuousIndexer)
-        # But if it's not, we have a problem.
-        # We assume ContinuousIndexer was used, so team_ids are 0..M-1.
-
-        # Also need task_order.
-        # We can sort assignments by start_time to get a valid order.
         sorted_assignments = sorted(schedule.assignments, key=lambda a: a.start_time)
-
         task_order = [a.task_id for a in sorted_assignments]
 
-        # Add unscheduled tasks to the end (randomly or in order)
         scheduled_ids = set(task_order)
         remaining = [tid for tid in self.tasks_with_teams if tid not in scheduled_ids]
         random.shuffle(remaining)
         task_order.extend(remaining)
 
         for a in schedule.assignments:
-            # Assumes a.team_id matches the index logic.
-            # If ContinuousIndexer is used, team keys are integers 0..M-1.
-            # self._preprocess relies on that.
             team_assignment[a.task_id] = a.team_id
 
-        # Fill assignments for remaining tasks
         for tid in remaining:
             opts = self.compatible_teams_indices[tid]
             if opts:
@@ -251,37 +236,12 @@ class GAMiddleware(MapResult):
 
         return Individual(task_order=order, team_assignment=teams)
 
-    def run(
+    def map_result(
         self,
         problem: ProblemInstance,
-        next_runnable,  # Typing omitted to avoid circular import issues if any
+        result: Schedule,
         time_limit: float = float("inf"),
     ) -> Schedule:
-        result = next_runnable.run(problem, time_limit=time_limit)
-
-        # Now run GA with remaining time?
-        # Ideally, we split the budget. But `Pipeline` budget logic does that BEFORE calling run.
-        # So `time_limit` passed here IS the budget for this middleware?
-        # No, `_BudgetedMiddlewareRunnable` passes `m_budget` as `time_limit` to `middleware.run`.
-        # So `time_limit` IS the budget for ME.
-        # But `MapResult.run` passes `time_limit` to `next_runnable`!
-        # This means `next_runnable` consumes MY budget?
-        # In `Pipeline`:
-        # `pipeline = _BudgetedMiddlewareRunnable(m, pipeline, m_budget)`
-        # `m` is `ga_search`. `pipeline` (inner) is the solver (or next middleware).
-        # `m.run` is called with `m_budget`.
-        # `m.run` calls `next_runnable.run` with `m_budget`.
-        # This seems wrong if `m_budget` was intended ONLY for `m`.
-        # If `m_budget` is for `m`, we shouldn't pass it to `next_runnable`.
-        # `next_runnable` should have its OWN budget wrapped around it?
-        # In `Pipeline`, `pipeline` (the inner runnable) IS already wrapped with its budget:
-        # `pipeline = _BudgetedRunnable(self.solver, solver_budget)`
-        # So when `m.run` calls `pipeline.run(..., time_limit=...)`, the `_BudgetedRunnable` ignores the passed `time_limit` and uses `self.budget`.
-        # So `time_limit` passed to `m.run` IS available for `m` to use!
-        # So I can just use `time_limit` in `ga_search`.
-
-        # So I will override `run` to use `time_limit`.
-
         self._preprocess(problem)
         random.seed(self.seed)
 
@@ -349,7 +309,3 @@ class GAMiddleware(MapResult):
                 )
             )
         return Schedule(assignments=final_assignments)
-
-    def map_result(self, problem: ProblemInstance, result: Schedule) -> Schedule:
-        # This won't be called if we override run()
-        return result

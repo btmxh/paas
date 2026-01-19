@@ -4,6 +4,7 @@ from typing import List, Dict, Tuple
 
 from paas.middleware.base import MapResult
 from paas.models import ProblemInstance, Schedule, Assignment
+from paas.time_budget import TimeBudget
 
 
 class HillClimbingMiddleware(MapResult):
@@ -28,7 +29,12 @@ class HillClimbingMiddleware(MapResult):
         self.iterations = iterations
         self.seed = seed
 
-    def map_result(self, problem: ProblemInstance, result: Schedule) -> Schedule:
+    def map_result(
+        self,
+        problem: ProblemInstance,
+        result: Schedule,
+        time_limit: float = float("inf"),
+    ) -> Schedule:
         """
         Apply Hill Climbing to the result schedule.
         """
@@ -44,45 +50,18 @@ class HillClimbingMiddleware(MapResult):
         task_order = [a.task_id for a in sorted_assignments]
         team_assignment = {a.task_id: a.team_id for a in sorted_assignments}
 
-        # Include unscheduled tasks?
-        # The input schedule might be partial.
-        # If we only optimize scheduled tasks, we can't add new ones.
-        # But Hill Climbing usually works on a fixed set or assumes complete solution.
-        # Let's assume we only optimize the set of scheduled tasks + potentially try to fit others?
-        # The original implementation worked on 'Individual' which covered ALL tasks.
-        # If the input schedule is partial, we might miss out.
-        # However, MapResult receives a Schedule.
-        # If we want to add tasks, we'd need to know which are missing.
-        # Let's stick to optimizing the *existing* assignments' makespan/cost,
-        # or maybe try to schedule missing ones if we can?
-        # For simplicity, we will focus on optimizing the given set of tasks first.
-        # Actually, if we want to match the power of a global search, we should include missing tasks in `task_order` at the end.
-
+        # Include unscheduled tasks
         scheduled_ids = set(task_order)
         all_task_ids = set(problem.tasks.keys())
         missing_ids = list(all_task_ids - scheduled_ids)
-        random.shuffle(missing_ids)  # Random order for missing
+        random.shuffle(missing_ids)
 
         full_task_order = task_order + missing_ids
 
-        # For missing tasks, assign a random compatible team
         for tid in missing_ids:
             compat = list(problem.tasks[tid].compatible_teams.keys())
             if compat:
                 team_assignment[tid] = random.choice(compat)
-            else:
-                # No compatible team (should be removed by ImpossibleTaskRemover, but handle safety)
-                pass
-
-        # 2. Run Hill Climbing
-        # We need a time limit. We can use TimeBudget(time_limit) if passed,
-        # but map_result doesn't receive time_limit in the signature defined in base.py (wait, let me check base.py again)
-        # base.py: map_result(self, problem: ProblemInstance, result: Schedule) -> Schedule
-        # run() calls map_result. run() receives time_limit.
-        # But map_result doesn't receive it.
-        # This is a design flaw in base.py if we want budget inside map_result.
-        # However, the user didn't ask me to fix base.py.
-        # I can inspect the frame or just use `self.iterations` as the limit.
 
         current_order = full_task_order
         current_teams = team_assignment
@@ -92,78 +71,80 @@ class HillClimbingMiddleware(MapResult):
             problem, current_order, current_teams
         )
 
-        for _ in range(self.iterations):
-            improved = False
+        with TimeBudget(time_limit) as budget:
+            for _ in range(self.iterations):
+                if budget.is_expired():
+                    break
+                improved = False
 
-            # 1. Swap Neighbors
-            n = len(current_order)
-            if n >= 2:
-                # Try a few swaps
-                swap_attempts = min(n, 20)
-                for _ in range(swap_attempts):
-                    i, j = random.sample(range(n), 2)
+                # 1. Swap Neighbors
+                n = len(current_order)
+                if n >= 2:
+                    swap_attempts = min(n, 20)
+                    for _ in range(swap_attempts):
+                        if budget.is_expired():
+                            break
+                        i, j = random.sample(range(n), 2)
 
-                    # Create neighbor
-                    neighbor_order = list(current_order)
-                    neighbor_order[i], neighbor_order[j] = (
-                        neighbor_order[j],
-                        neighbor_order[i],
-                    )
+                        neighbor_order = list(current_order)
+                        neighbor_order[i], neighbor_order[j] = (
+                            neighbor_order[j],
+                            neighbor_order[i],
+                        )
 
-                    # Evaluate
-                    _, neighbor_score = self._evaluate(
-                        problem, neighbor_order, current_teams
-                    )
+                        _, neighbor_score = self._evaluate(
+                            problem, neighbor_order, current_teams
+                        )
 
-                    if neighbor_score < current_score:
-                        current_order = neighbor_order
-                        current_score = neighbor_score
-                        improved = True
-                        break  # First improvement
+                        if neighbor_score < current_score:
+                            current_order = neighbor_order
+                            current_score = neighbor_score
+                            improved = True
+                            break
 
-            if improved:
-                continue
-
-            # 2. Team Change Neighbors
-            # Pick a few random tasks and try to change their team
-            tasks_to_try = random.sample(
-                list(current_teams.keys()), min(len(current_teams), 10)
-            )
-            for tid in tasks_to_try:
-                if tid not in problem.tasks:
+                if improved:
                     continue
 
-                current_team = current_teams[tid]
-                compat = list(problem.tasks[tid].compatible_teams.keys())
-
-                # Try other teams
-                better_found = False
-                for new_team in compat:
-                    if new_team == current_team:
+                # 2. Team Change Neighbors
+                tasks_to_try = random.sample(
+                    list(current_teams.keys()), min(len(current_teams), 10)
+                )
+                for tid in tasks_to_try:
+                    if budget.is_expired():
+                        break
+                    if tid not in problem.tasks:
                         continue
 
-                    neighbor_teams = dict(current_teams)
-                    neighbor_teams[tid] = new_team
+                    current_team = current_teams[tid]
+                    compat = list(problem.tasks[tid].compatible_teams.keys())
 
-                    _, neighbor_score = self._evaluate(
-                        problem, current_order, neighbor_teams
-                    )
+                    better_found = False
+                    for new_team in compat:
+                        if budget.is_expired():
+                            break
+                        if new_team == current_team:
+                            continue
 
-                    if neighbor_score < current_score:
-                        current_teams = neighbor_teams
-                        current_score = neighbor_score
-                        improved = True
-                        better_found = True
+                        neighbor_teams = dict(current_teams)
+                        neighbor_teams[tid] = new_team
+
+                        _, neighbor_score = self._evaluate(
+                            problem, current_order, neighbor_teams
+                        )
+
+                        if neighbor_score < current_score:
+                            current_teams = neighbor_teams
+                            current_score = neighbor_score
+                            improved = True
+                            better_found = True
+                            break
+
+                    if better_found:
                         break
 
-                if better_found:
+                if not improved:
                     break
 
-            if not improved:
-                # Local optimum
-                break
-
-        # Return best schedule found
         best_assignments, _ = self._evaluate(problem, current_order, current_teams)
         return Schedule(assignments=best_assignments)
 
