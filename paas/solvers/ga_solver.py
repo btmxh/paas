@@ -62,6 +62,7 @@ class GASolver(Solver):
         - Assumes Task keys are integers 0..N-1
         - Assumes Team keys are integers 0..M-1
         """
+        problem.assert_continuous_indices()
         self.num_tasks = problem.num_tasks
         self.num_teams = problem.num_teams
 

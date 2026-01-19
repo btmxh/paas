@@ -1,3 +1,5 @@
+from paas.middleware.base import Pipeline
+from paas.middleware import ContinuousIndexer
 import unittest
 from paas.models import Task, Team, ProblemInstance
 from paas.solvers.ga_solver import GASolver
@@ -24,7 +26,13 @@ class TestGASolver(unittest.TestCase):
         solver = GASolver(
             initial_population_size=5, max_population_size=10, max_generation=10
         )
-        schedule = solver.run(problem)
+        pipeline = Pipeline(
+            middlewares=[
+                ContinuousIndexer(),
+            ],
+            solver=solver,
+        )
+        schedule = pipeline.run(problem)
 
         # Expect all tasks to be scheduled
         self.assertEqual(len(schedule.assignments), 3)
@@ -53,7 +61,13 @@ class TestGASolver(unittest.TestCase):
         solver = GASolver(
             initial_population_size=5, max_population_size=10, max_generation=10
         )
-        schedule = solver.run(problem)
+        pipeline = Pipeline(
+            middlewares=[
+                ContinuousIndexer(),
+            ],
+            solver=solver,
+        )
+        schedule = pipeline.run(problem)
 
         assign_map = {a.task_id: a for a in schedule.assignments}
 

@@ -25,6 +25,21 @@ class ProblemInstance:
     tasks: Dict[int, Task]
     teams: Dict[int, Team]
 
+    def assert_continuous_indices(self):
+        expected_task_ids = set(range(self.num_tasks))
+        actual_task_ids = set(self.tasks.keys())
+        if expected_task_ids != actual_task_ids:
+            raise ValueError(
+                f"Task IDs are not continuous. Expected {expected_task_ids}, got {actual_task_ids}"
+            )
+
+        expected_team_ids = set(range(self.num_teams))
+        actual_team_ids = set(self.teams.keys())
+        if expected_team_ids != actual_team_ids:
+            raise ValueError(
+                f"Team IDs are not continuous. Expected {expected_team_ids}, got {actual_team_ids}"
+            )
+
 
 @dataclass
 class Assignment:
