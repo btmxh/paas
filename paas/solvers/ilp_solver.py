@@ -7,10 +7,9 @@ from paas.models import ProblemInstance, Schedule, Assignment
 class ILPSolver(Solver):
     """
     ILP Solver using OR-Tools (SAT backend via linear solver interface).
-    Performs 3-stage optimization:
-    1. Maximize assigned tasks
-    2. Minimize makespan (completion time)
-    3. Minimize total cost
+    Performs 2-stage optimization: (num_tasks is trivial)
+    1. Minimize makespan (completion time)
+    2. Minimize total cost
     """
 
     def run(
@@ -56,69 +55,6 @@ class ILPSolver(Solver):
         if time_limit != float("inf"):
             phase_time_limit_ms = int(time_limit * 1000 / 3)
 
-        # --- Phase 1: Maximize assigned tasks ---
-        solver = pywraplp.Solver.CreateSolver("SAT")
-        if not solver:
-            # Fallback if SAT not available, though user script used SAT
-            # SCIP or CBC might be available
-            solver = pywraplp.Solver.CreateSolver("SCIP")
-            if not solver:
-                raise RuntimeError("No suitable solver backend found")
-
-        if phase_time_limit_ms:
-            solver.SetTimeLimit(phase_time_limit_ms)
-
-        assigned_tasks = {}
-        task2team = {}
-        start_task_time = {}
-
-        comp_time = solver.IntVar(0, solver.infinity(), "max_time")
-
-        for task in remain_tasks:
-            assigned_tasks[task] = solver.IntVar(0, 1, f"task{task}")
-            start_task_time[task] = solver.IntVar(0, solver.infinity(), f"start{task}")
-
-            for team in range(num_teams_count):
-                if (task, team) in costs:
-                    task2team[(task, team)] = solver.IntVar(0, 1, f"t2t{(task, team)}")
-
-        # constraints
-        for task in remain_tasks:
-            # assigned_tasks[task] == sum(task2team...)
-            solver.Add(
-                assigned_tasks[task]
-                == sum(
-                    task2team[(task, team)]
-                    for team in range(num_teams_count)
-                    if (task, team) in costs
-                )
-            )
-            solver.Add(assigned_tasks[task] <= 1)
-            solver.Add(start_task_time[task] + durations[task] <= comp_time)
-
-            for team in range(num_teams_count):
-                if (task, team) in costs:
-                    solver.Add(
-                        start_task_time[task]
-                        >= start_team_time[team] * task2team[(task, team)]
-                    )
-
-        for task_i, task_j in constraints:
-            if task_i in remain_tasks and task_j in remain_tasks:
-                solver.Add(
-                    start_task_time[task_j]
-                    + MAX_INT * (2 - assigned_tasks[task_i] - assigned_tasks[task_j])
-                    >= start_task_time[task_i] + durations[task_i]
-                )
-
-        solver.Maximize(sum(assigned_tasks[task] for task in remain_tasks))
-        status = solver.Solve()
-
-        if status not in (pywraplp.Solver.OPTIMAL, pywraplp.Solver.FEASIBLE):
-            return Schedule(assignments=[])
-
-        max_tasks = int(solver.Objective().Value())
-
         # --- Phase 2: Minimize completion time ---
         solver = pywraplp.Solver.CreateSolver("SAT")
         # Reuse or recreate? Recreate to be clean
@@ -128,29 +64,61 @@ class ILPSolver(Solver):
         if phase_time_limit_ms:
             solver.SetTimeLimit(phase_time_limit_ms)
 
-        assigned_tasks = {}
         task2team = {}
         start_task_time = {}
         comp_time = solver.IntVar(0, solver.infinity(), "max_time")
 
         for task in remain_tasks:
-            assigned_tasks[task] = solver.IntVar(0, 1, f"task{task}")
             start_task_time[task] = solver.IntVar(0, solver.infinity(), f"start{task}")
 
             for team in range(num_teams_count):
                 if (task, team) in costs:
                     task2team[(task, team)] = solver.IntVar(0, 1, f"t2t{(task, team)}")
 
+        # No overlapping condition
+        order = {}
+        for task_i in range(len(remain_tasks)):
+            for task_j in range(task_i + 1, len(remain_tasks)):
+                for team in range(num_teams_count):
+                    if (task_i, team) in costs and (task_j, team) in costs:
+                        order[(task_i, task_j, team)] = solver.IntVar(
+                            0, 1, f"order_{task_i}_{task_j}_team{team}"
+                        )
+                        # If both tasks are assigned to the same team, one must precede the other
+                        solver.Add(
+                            start_task_time[task_j]
+                            >= start_task_time[task_i]
+                            + durations[task_i]
+                            - MAX_INT
+                            * (
+                                3
+                                - task2team[(task_i, team)]
+                                - task2team[(task_j, team)]
+                                - order[(task_i, task_j, team)]
+                            )
+                        )
+                        solver.Add(
+                            start_task_time[task_i]
+                            >= start_task_time[task_j]
+                            + durations[task_j]
+                            - MAX_INT
+                            * (
+                                3
+                                - task2team[(task_i, team)]
+                                - task2team[(task_j, team)]
+                                - (1 - order[(task_i, task_j, team)])
+                            )
+                        )
+
         for task in remain_tasks:
             solver.Add(
-                assigned_tasks[task]
+                1
                 == sum(
                     task2team[(task, team)]
                     for team in range(num_teams_count)
                     if (task, team) in costs
                 )
             )
-            solver.Add(assigned_tasks[task] <= 1)
             solver.Add(start_task_time[task] + durations[task] <= comp_time)
 
             for team in range(num_teams_count):
@@ -164,11 +132,8 @@ class ILPSolver(Solver):
             if task_i in remain_tasks and task_j in remain_tasks:
                 solver.Add(
                     start_task_time[task_j]
-                    + MAX_INT * (2 - assigned_tasks[task_i] - assigned_tasks[task_j])
                     >= start_task_time[task_i] + durations[task_i]
                 )
-
-        solver.Add(sum(assigned_tasks[task] for task in remain_tasks) >= max_tasks)
 
         solver.Minimize(comp_time)
         status = solver.Solve()
@@ -186,12 +151,10 @@ class ILPSolver(Solver):
         if phase_time_limit_ms:
             solver.SetTimeLimit(phase_time_limit_ms)
 
-        assigned_tasks = {}
         task2team = {}
         start_task_time = {}
 
         for task in remain_tasks:
-            assigned_tasks[task] = solver.IntVar(0, 1, f"task{task}")
             start_task_time[task] = solver.IntVar(0, solver.infinity(), f"start{task}")
 
             for team in range(num_teams_count):
@@ -200,14 +163,13 @@ class ILPSolver(Solver):
 
         for task in remain_tasks:
             solver.Add(
-                assigned_tasks[task]
+                1
                 == sum(
                     task2team[(task, team)]
                     for team in range(num_teams_count)
                     if (task, team) in costs
                 )
             )
-            solver.Add(assigned_tasks[task] <= 1)
             solver.Add(start_task_time[task] + durations[task] <= min_complete_time)
 
             for team in range(num_teams_count):
@@ -221,11 +183,43 @@ class ILPSolver(Solver):
             if task_i in remain_tasks and task_j in remain_tasks:
                 solver.Add(
                     start_task_time[task_j]
-                    + MAX_INT * (2 - assigned_tasks[task_i] - assigned_tasks[task_j])
                     >= start_task_time[task_i] + durations[task_i]
                 )
 
-        solver.Add(sum(assigned_tasks[task] for task in remain_tasks) >= max_tasks)
+        # No overlapping condition
+        order = {}
+        for task_i in range(len(remain_tasks)):
+            for task_j in range(task_i + 1, len(remain_tasks)):
+                for team in range(num_teams_count):
+                    if (task_i, team) in costs and (task_j, team) in costs:
+                        order[(task_i, task_j, team)] = solver.IntVar(
+                            0, 1, f"order_{task_i}_{task_j}_team{team}"
+                        )
+                        # If both tasks are assigned to the same team, one must precede the other
+                        solver.Add(
+                            start_task_time[task_j]
+                            >= start_task_time[task_i]
+                            + durations[task_i]
+                            - MAX_INT
+                            * (
+                                3
+                                - task2team[(task_i, team)]
+                                - task2team[(task_j, team)]
+                                - order[(task_i, task_j, team)]
+                            )
+                        )
+                        solver.Add(
+                            start_task_time[task_i]
+                            >= start_task_time[task_j]
+                            + durations[task_j]
+                            - MAX_INT
+                            * (
+                                3
+                                - task2team[(task_i, team)]
+                                - task2team[(task_j, team)]
+                                - (1 - order[(task_i, task_j, team)])
+                            )
+                        )
 
         solver.Minimize(
             sum(
