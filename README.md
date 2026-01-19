@@ -66,7 +66,7 @@ from paas.middleware import (
     ImpossibleTaskRemover, CycleRemover, DependencyPruner,
     ContinuousIndexer, GAMiddleware, TabuSearchMiddleware
 )
-from paas.solvers.ga_greedy import GAGreedySolver
+from paas.solvers import GreedyMinStartTimeSolver
 
 def main():
     instance = parse_input(sys.stdin)
@@ -79,7 +79,7 @@ def main():
         TabuSearchMiddleware(),
     ]
     # Set check=False to save time during submission
-    pipeline = Pipeline(middlewares, GAGreedySolver(), check=False)
+    pipeline = Pipeline(middlewares, GreedyMinStartTimeSolver(), check=False)
     solution = pipeline.run(instance)
     solution.print()
 
@@ -107,7 +107,6 @@ Algorithms that generate a schedule for a given problem:
 - `CPSolver`: Optimal scheduling using Constraint Programming (OR-Tools).
 - `GreedyMinStartTimeSolver`: Simple and fast heuristic.
 - `ACOSolver` / `PSOSolver`: Ant Colony and Particle Swarm Optimization.
-- `GAGreedySolver` / `TabuGreedySolver`: Constructive heuristics using GA/Tabu search.
 - `ILPSolver`: Integer Linear Programming approach.
 
 ### 3. Middlewares (`paas/middleware/`)
