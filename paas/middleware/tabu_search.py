@@ -40,8 +40,8 @@ class TabuSearchMiddleware(MapResult):
 
     def __init__(
         self,
-        tabu_tenure: int = 10,
-        max_neighbors: int = 50,
+        tabu_tenure: int = 20,
+        max_neighbors: int = 500,
         seed: int = 42,
         time_factor: float = 1.0,
     ):
