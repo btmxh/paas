@@ -22,6 +22,9 @@ class ContinuousIndexMap:
     def __contains__(self, old_id: int) -> bool:
         return old_id in self.old_to_new
 
+    def __len__(self) -> int:
+        return len(self.old_to_new)
+
 
 class ContinuousIndexer(Middleware):
     """
@@ -71,7 +74,7 @@ class ContinuousIndexer(Middleware):
             new_tasks[new_id] = new_task
 
         print(
-            f"ContinuousIndexer: Remapped {len(original_ids)} tasks to continuous indices.",
+            f"ContinuousIndexer: Remapped {len(new_tasks)} tasks to continuous indices.",
             file=stderr,
         )
 
