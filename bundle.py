@@ -136,8 +136,6 @@ def is_main_check(node: ast.AST) -> bool:
     comp = test.comparators[0]
     if isinstance(comp, ast.Constant) and comp.value == "__main__":
         return True
-    if isinstance(comp, ast.Str) and comp.s == "__main__":  # Legacy Python
-        return True
 
     return False
 
