@@ -1,11 +1,20 @@
+"""
+GA + Hill Climbing Solver (Memetic Algorithm).
+
+This combines Genetic Algorithm with Local Search (Hill Climbing):
+1. GA explores the solution space globally (exploration)
+2. Hill Climbing refines promising solutions locally (exploitation)
+
+Hill Climbing is applied to the best individual after GA finishes.
+"""
+
 import sys
 import random
 from dataclasses import dataclass
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from paas.models import ProblemInstance, Schedule, Assignment
 from paas.middleware.base import Solver
 from paas.time_budget import TimeBudget
-from typing import Optional
 
 
 @dataclass
@@ -14,9 +23,7 @@ class Individual:
     Chromosome encoding:
     - task_order: permutation of task IDs (scheduling order)
     - team_assignment: dict mapping task_id -> team_id
-    - fitness: cached fitness score (computed lazily)
-
-    start_time is NOT part of the gene - it's computed during decoding.
+    - fitness: cached fitness score
     """
 
     task_order: List[int]
@@ -24,17 +31,24 @@ class Individual:
     fitness: Optional[Tuple[int, int, int]] = None
 
 
-class GASolver(Solver):
+class GAHillClimbingSolver(Solver):
     """
-    Genetic Algorithm based solver for the Project Assignment and Scheduling (PaaS) problem.
+    Memetic Algorithm: GA + Hill Climbing for the PaaS problem.
 
-    Encoding: (task_order, team_assignment) - start_time is derived, not stored.
-    This reduces search space significantly.
+    Combines:
+    - GA: global exploration via selection, crossover, mutation
+    - Hill Climbing: local exploitation to refine best solutions
 
-    Optimizes:
-    1. Maximal number of tasks scheduled.
-    2. Minimal completion time.
-    3. Minimal total cost.
+    Hill Climbing Neighborhood:
+    1. Swap: exchange positions of two tasks in task_order
+    2. Team change: assign a different team to a task
+
+    Strategy: First-improvement (accept first better neighbor found)
+
+    Optimizes (in priority order):
+    1. Maximal number of tasks scheduled
+    2. Minimal completion time (makespan)
+    3. Minimal total cost
     """
 
     def __init__(
@@ -43,19 +57,18 @@ class GASolver(Solver):
         max_population_size: int = 200,
         seed: int = 8,
         time_factor: float = 1.0,
+        hill_climbing_iterations: int = 10,
     ):
         super().__init__(time_factor)
         self.initial_population_size = initial_population_size
         self.max_population_size = max_population_size
         self.seed = seed
+        self.hill_climbing_iterations = hill_climbing_iterations
 
     def _decode(
         self, individual: Individual, problem: ProblemInstance
     ) -> List[Assignment]:
-        """
-        Decode an individual into assignments by scheduling tasks in the given order.
-        start_time is computed here based on dependencies and team availability.
-        """
+        """Decode an individual into assignments."""
         scheduled_finishes: Dict[int, int] = {}
         assignments: List[Assignment] = []
         team_available = {
@@ -75,7 +88,6 @@ class GASolver(Solver):
                 task = problem.tasks[task_id]
                 team_id = individual.team_assignment[task_id]
 
-                # Check predecessors
                 preds_done = True
                 preds_complete_time = 0
                 for p in task.predecessors:
@@ -90,7 +102,6 @@ class GASolver(Solver):
                     new_todo.append(task_id)
                     continue
 
-                # Schedule - compute start_time here
                 start_time = max(team_available[team_id], preds_complete_time)
                 assignments.append(Assignment(task_id, team_id, start_time))
                 finish_time = start_time + task.duration
@@ -103,10 +114,7 @@ class GASolver(Solver):
     def _evaluate(
         self, individual: Individual, problem: ProblemInstance
     ) -> Tuple[int, int, int]:
-        """
-        Returns: (-task_count, completion_time, cost) for minimization.
-        Caches result in individual.fitness to avoid recomputation.
-        """
+        """Returns: (-task_count, completion_time, cost) for minimization."""
         if individual.fitness is not None:
             return individual.fitness
 
@@ -130,7 +138,7 @@ class GASolver(Solver):
     def _generate_random_individual(
         self, problem: ProblemInstance, tasks_with_teams: List[int]
     ) -> Individual:
-        """Generate a random individual with shuffled task order and random team assignments."""
+        """Generate a random individual."""
         task_order = list(tasks_with_teams)
         random.shuffle(task_order)
 
@@ -144,11 +152,7 @@ class GASolver(Solver):
     def _generate_greedy_individual(
         self, problem: ProblemInstance, tasks_with_teams: List[int]
     ) -> Individual:
-        """
-        Generate an individual using greedy heuristic:
-        - Order tasks by earliest possible start time
-        - Assign each task to team that allows earliest start
-        """
+        """Generate an individual using greedy heuristic."""
         tasks = problem.tasks
         teams = problem.teams
 
@@ -168,7 +172,6 @@ class GASolver(Solver):
 
             for tid in remaining:
                 task = tasks[tid]
-                # Check if all predecessors are done
                 if not all(p in task_completion for p in task.predecessors):
                     continue
 
@@ -185,7 +188,6 @@ class GASolver(Solver):
                         best_cost = cost
 
             if best_task == -1:
-                # No schedulable task found, add remaining in arbitrary order
                 for tid in remaining:
                     task_order.append(tid)
                     task = tasks[tid]
@@ -203,7 +205,7 @@ class GASolver(Solver):
     def _crossover_order(
         self, p1: List[int], p2: List[int]
     ) -> Tuple[List[int], List[int]]:
-        """Order crossover (OX) for task permutation."""
+        """Order Crossover (OX)."""
         n = len(p1)
         if n < 2:
             return list(p1), list(p2)
@@ -241,7 +243,7 @@ class GASolver(Solver):
     def _crossover(
         self, parent1: Individual, parent2: Individual
     ) -> Tuple[Individual, Individual]:
-        """Crossover two individuals - separate crossover for order and teams."""
+        """Crossover two individuals."""
         order1, order2 = self._crossover_order(parent1.task_order, parent2.task_order)
         teams1, teams2 = self._crossover_teams(
             parent1.team_assignment, parent2.team_assignment
@@ -253,16 +255,14 @@ class GASolver(Solver):
         )
 
     def _mutate(self, parent: Individual, problem: ProblemInstance) -> Individual:
-        """Mutate an individual - swap order positions and/or change team."""
+        """Mutate an individual."""
         task_order = list(parent.task_order)
         team_assignment = dict(parent.team_assignment)
 
-        # Swap mutation on order
         if len(task_order) >= 2 and random.random() < 0.5:
             i, j = random.sample(range(len(task_order)), 2)
             task_order[i], task_order[j] = task_order[j], task_order[i]
 
-        # Team mutation
         if random.random() < 0.5:
             tid = random.choice(list(team_assignment.keys()))
             task = problem.tasks[tid]
@@ -273,6 +273,80 @@ class GASolver(Solver):
                     team_assignment[tid] = random.choice(other_teams)
 
         return Individual(task_order=task_order, team_assignment=team_assignment)
+
+    def _hill_climbing(
+        self, individual: Individual, problem: ProblemInstance, max_iter: int
+    ) -> Individual:
+        """
+        Hill Climbing (Local Search) to improve an individual.
+
+        Neighborhood moves:
+        1. Swap: exchange positions of two tasks in task_order
+        2. Team change: assign a different team to a task
+
+        Strategy: First-improvement (accept first better neighbor)
+        """
+        current = individual
+        current_score = self._evaluate(current, problem)
+
+        for _ in range(max_iter):
+            improved = False
+
+            # Try swap neighbors
+            n = len(current.task_order)
+            if n >= 2:
+                for _ in range(min(n * 2, 20)):
+                    i, j = random.sample(range(n), 2)
+
+                    new_order = list(current.task_order)
+                    new_order[i], new_order[j] = new_order[j], new_order[i]
+                    neighbor = Individual(
+                        task_order=new_order,
+                        team_assignment=dict(current.team_assignment),
+                    )
+                    neighbor_score = self._evaluate(neighbor, problem)
+
+                    # First-improvement: accept immediately if better
+                    if neighbor_score < current_score:
+                        current = neighbor
+                        current_score = neighbor_score
+                        improved = True
+                        break
+
+            # Try team change neighbors if no swap improvement
+            if not improved:
+                task_ids = list(current.team_assignment.keys())
+                random.shuffle(task_ids)
+
+                for tid in task_ids[:10]:
+                    task = problem.tasks[tid]
+                    current_team = current.team_assignment[tid]
+                    other_teams = [
+                        t for t in task.compatible_teams.keys() if t != current_team
+                    ]
+
+                    for new_team in other_teams:
+                        new_assignment = dict(current.team_assignment)
+                        new_assignment[tid] = new_team
+                        neighbor = Individual(
+                            task_order=list(current.task_order),
+                            team_assignment=new_assignment,
+                        )
+                        neighbor_score = self._evaluate(neighbor, problem)
+
+                        if neighbor_score < current_score:
+                            current = neighbor
+                            current_score = neighbor_score
+                            improved = True
+                            break
+                    if improved:
+                        break
+
+            # No improvement found - local optimum reached
+            if not improved:
+                break
+
+        return current
 
     def run(
         self, problem: ProblemInstance, time_limit: float = float("inf")
@@ -287,14 +361,12 @@ class GASolver(Solver):
             return Schedule(assignments=[])
 
         with TimeBudget(time_limit) as budget:
-            # Initialize population - seed with greedy solution first
+            # Initialize population
             population: List[Individual] = []
 
-            # Add greedy-generated individual as seed
             greedy_ind = self._generate_greedy_individual(problem, tasks_with_teams)
             population.append(greedy_ind)
 
-            # Fill rest with random individuals
             for _ in range(self.initial_population_size - 1):
                 if budget.is_expired():
                     break
@@ -305,21 +377,18 @@ class GASolver(Solver):
             best_individual = population[0]
             best_score = self._evaluate(best_individual, problem)
 
-            # Run until time expires - no generation limit, no stuck limit
+            # Main GA loop
             while not budget.is_expired():
                 if not population:
                     break
 
-                # Evaluate and sort (minimization)
                 population.sort(key=lambda x: self._evaluate(x, problem))
 
-                # Update best
                 current_best_score = self._evaluate(population[0], problem)
                 if current_best_score < best_score:
                     best_score = current_best_score
                     best_individual = population[0]
 
-                # Selection - keep top 50%
                 num_best = max(len(population) // 2, 2)
                 best_population = population[:num_best]
 
@@ -347,13 +416,16 @@ class GASolver(Solver):
                     new_pop.append(mchild)
 
                 population = new_pop
-
-                # Elitism - always keep best
                 population.append(best_individual)
 
-                # Trim population
                 if len(population) > self.max_population_size:
                     population.sort(key=lambda x: self._evaluate(x, problem))
                     population = population[: self.initial_population_size]
+
+            # Apply Hill Climbing to best individual
+            if self.hill_climbing_iterations > 0:
+                best_individual = self._hill_climbing(
+                    best_individual, problem, self.hill_climbing_iterations
+                )
 
             return Schedule(assignments=self._decode(best_individual, problem))
