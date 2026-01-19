@@ -35,4 +35,4 @@ class TestImpossibleTaskRemover(unittest.TestCase):
         new_problem = remover.map_problem(problem)
 
         self.assertEqual(len(new_problem.tasks), 1)
-        self.assertIs(new_problem, problem)  # Should return original if no changes
+        self.assertEqual(len(new_problem.tasks), len(problem.tasks))

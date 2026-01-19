@@ -55,12 +55,13 @@ so it might break under certain circumstances.
 
 First, create an `entry.py` file as follows:
 ```py
+from paas.middleware import ContinuousIndexer
 from paas.middleware.base import Pipeline
 from paas.middleware.cycle_remover import CycleRemover
 from paas.middleware.dependency_pruner import DependencyPruner
 from paas.middleware.impossible_task_remover import ImpossibleTaskRemover
 from paas.parser import parse_input
-from paas.solvers.ga_solver import GASolver
+from paas.solvers import CPSolver
 import sys
 
 
@@ -70,8 +71,10 @@ def main():
         ImpossibleTaskRemover(),
         CycleRemover(),
         DependencyPruner(),
+        ContinuousIndexer(),
     ]
-    pipeline = Pipeline(middlewares, GASolver())
+    # avoid checking when submitting to Hustack
+    pipeline = Pipeline(middlewares, CPSolver(), check=False)
     solution = pipeline.run(instance)
     solution.print()
 

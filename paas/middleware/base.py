@@ -1,3 +1,5 @@
+from sys import stderr
+from paas.checker import validate_schedule
 from abc import ABC, abstractmethod
 from typing import Protocol, List, Optional
 
@@ -143,10 +145,12 @@ class Pipeline(Runnable):
         middlewares: List[Middleware],
         solver: Solver,
         total_budget: Optional[TimeBudget] = None,
+        check: bool = True,
     ):
         self.middlewares = middlewares
         self.solver = solver
         self.total_budget = total_budget
+        self.check = check
 
     def run(
         self, problem: ProblemInstance, time_limit: float = float("inf")
@@ -190,4 +194,11 @@ class Pipeline(Runnable):
             for m in reversed(self.middlewares):
                 pipeline = _WrappedRunnable(m, pipeline)
 
-        return pipeline.run(problem)
+        schedule = pipeline.run(problem)
+        if self.check:
+            result = validate_schedule(problem, schedule)
+            if not result.is_valid:
+                print("Warning: The produced schedule is invalid:", file=stderr)
+                for error in result.errors:
+                    print(f"- {error.message}", file=stderr)
+        return schedule

@@ -18,9 +18,6 @@ class ImpossibleTaskRemover(MapProblem):
             if not task.compatible_teams:
                 to_remove.add(t_id)
 
-        if not to_remove:
-            return problem
-
         new_tasks = {}
 
         for t_id, task in tasks.items():
