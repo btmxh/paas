@@ -67,15 +67,15 @@ class GASolver(Solver):
         self.num_teams = problem.num_teams
 
         # 1. Team Availability
-        # Map teams to 0..M-1 to handle arbitrary team IDs safely
-        self.team_idx_to_id = sorted(problem.teams.keys())
-        team_id_to_idx = {tid: i for i, tid in enumerate(self.team_idx_to_id)}
-
+        # Since team keys are 0..M-1, we can map directly to list indices.
+        # We create a list where index `i` corresponds to team ID `i`.
         self.team_initial_availability = [0] * self.num_teams
         for tid, team in problem.teams.items():
-            if tid in team_id_to_idx:
-                idx = team_id_to_idx[tid]
-                self.team_initial_availability[idx] = team.available_from
+            self.team_initial_availability[tid] = team.available_from
+
+        # We keep this for the 'run' method's final reconstruction step,
+        # ensuring it maps index i -> ID i.
+        self.team_idx_to_id = list(range(self.num_teams))
 
         # 2. Task Data Structures (Pre-allocate for speed)
         self.durations = [0] * self.num_tasks
@@ -90,10 +90,6 @@ class GASolver(Solver):
         # 3. Flatten Task Data
         for tid, task in problem.tasks.items():
             # Direct index access (No dictionary lookups or bounds checking needed)
-            if tid >= self.num_tasks:
-                # Should not happen if assumption holds (ContinuousIndexer)
-                continue
-
             self.durations[tid] = task.duration
             self.predecessors[tid] = task.predecessors
 
@@ -101,11 +97,10 @@ class GASolver(Solver):
                 self.tasks_with_teams.append(tid)
 
             # Flatten compatibility map
-            for team_id, cost in task.compatible_teams.items():
-                if team_id in team_id_to_idx:
-                    team_idx = team_id_to_idx[team_id]
-                    self.compatible_teams_indices[tid].append(team_idx)
-                    self.team_costs[tid][team_idx] = cost
+            # key `team_idx` is already an integer 0..M-1
+            for team_idx, cost in task.compatible_teams.items():
+                self.compatible_teams_indices[tid].append(team_idx)
+                self.team_costs[tid][team_idx] = cost
 
     def _decode(self, individual: Individual) -> List[Assignment]:
         """

@@ -17,14 +17,14 @@ class TestHillClimbingMiddleware(unittest.TestCase):
         # Suboptimal: Task 0 -> A, Task 1 -> A (Makespan 20)
 
         tasks = {
-            0: Task(0, 10, [], [], {0: 10, 1: 10}),
-            1: Task(1, 10, [], [], {0: 10, 1: 10}),
+            0: Task(0, 10, [], {0: 10, 1: 10}),
+            1: Task(1, 10, [], {0: 10, 1: 10}),
         }
         teams = {
             0: Team(0, 0),
             1: Team(1, 0),
         }
-        problem = ProblemInstance(2, 2, tasks, teams)
+        problem = ProblemInstance(tasks, teams)
 
         # Create suboptimal schedule (Both on Team 0)
         assignments = [
@@ -56,13 +56,13 @@ class TestHillClimbingMiddleware(unittest.TestCase):
     def test_dependency_preservation(self):
         # Task 0 -> Task 1
         tasks = {
-            0: Task(0, 10, [], [], {0: 10}),
-            1: Task(1, 10, [0], [], {0: 10}),
+            0: Task(0, 10, [], {0: 10}),
+            1: Task(1, 10, [0], {0: 10}),
         }
         teams = {
             0: Team(0, 0),
         }
-        problem = ProblemInstance(2, 1, tasks, teams)
+        problem = ProblemInstance(tasks, teams)
 
         assignments = [
             Assignment(0, 0, 0),
