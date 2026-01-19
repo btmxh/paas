@@ -86,10 +86,15 @@ class MapResult(Middleware):
         time_limit: float = float("inf"),
     ) -> Schedule:
         result = next_runnable.run(problem)
-        return self.map_result(problem, result)
+        return self.map_result(problem, result, time_limit=time_limit)
 
     @abstractmethod
-    def map_result(self, problem: ProblemInstance, result: Schedule) -> Schedule:
+    def map_result(
+        self,
+        problem: ProblemInstance,
+        result: Schedule,
+        time_limit: float = float("inf"),
+    ) -> Schedule:
         """
         Refine the result.
         """

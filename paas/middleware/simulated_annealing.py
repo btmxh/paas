@@ -5,6 +5,7 @@ from typing import List, Dict, Tuple
 
 from paas.middleware.base import MapResult
 from paas.models import ProblemInstance, Schedule, Assignment
+from paas.time_budget import TimeBudget
 
 
 class SimulatedAnnealingRefiner(MapResult):
@@ -33,7 +34,12 @@ class SimulatedAnnealingRefiner(MapResult):
         self.max_iterations = max_iterations
         self.seed = seed
 
-    def map_result(self, problem: ProblemInstance, result: Schedule) -> Schedule:
+    def map_result(
+        self,
+        problem: ProblemInstance,
+        result: Schedule,
+        time_limit: float = float("inf"),
+    ) -> Schedule:
         """
         The entry point for the middleware.
         Refines the incoming 'result' schedule using Simulated Annealing.
@@ -60,47 +66,57 @@ class SimulatedAnnealingRefiner(MapResult):
 
         temperature = self.initial_temp
 
-        # We can't easily access the original 'TimeBudget' of the parent process
-        # inside map_result unless passed explicitly.
-        # We perform a fixed number of iterations for stability.
+        use_time_limit = time_limit != float("inf")
+        iteration = 0
 
-        for _ in range(self.max_iterations):
-            # 3. Create Neighbor (Mutation)
-            neighbor_order, neighbor_teams = self._mutate(
-                problem, current_order, current_teams
-            )
+        with TimeBudget.from_seconds(time_limit) as budget:
+            while True:
+                # Check termination condition
+                if use_time_limit:
+                    if budget.is_expired():
+                        break
+                else:
+                    if iteration >= self.max_iterations:
+                        break
 
-            # 4. Evaluate Neighbor
-            _, neighbor_fitness = self._evaluate(
-                problem, neighbor_order, neighbor_teams
-            )
-            neighbor_energy = self._calculate_energy(neighbor_fitness)
+                iteration += 1
 
-            # 5. Acceptance Criteria (Metropolis)
-            delta_e = neighbor_energy - current_energy
-            accept = False
+                # 3. Create Neighbor (Mutation)
+                neighbor_order, neighbor_teams = self._mutate(
+                    problem, current_order, current_teams
+                )
 
-            if delta_e < 0:
-                # Strictly better
-                accept = True
-            elif temperature > 1e-10:
-                # Worse, but accept with probability
-                if random.random() < math.exp(-delta_e / temperature):
+                # 4. Evaluate Neighbor
+                _, neighbor_fitness = self._evaluate(
+                    problem, neighbor_order, neighbor_teams
+                )
+                neighbor_energy = self._calculate_energy(neighbor_fitness)
+
+                # 5. Acceptance Criteria (Metropolis)
+                delta_e = neighbor_energy - current_energy
+                accept = False
+
+                if delta_e < 0:
+                    # Strictly better
                     accept = True
+                elif temperature > 1e-10:
+                    # Worse, but accept with probability
+                    if random.random() < math.exp(-delta_e / temperature):
+                        accept = True
 
-            if accept:
-                current_order = neighbor_order
-                current_teams = neighbor_teams
-                current_energy = neighbor_energy
+                if accept:
+                    current_order = neighbor_order
+                    current_teams = neighbor_teams
+                    current_energy = neighbor_energy
 
-                # Keep track of absolute best
-                if current_energy < best_energy:
-                    best_order = list(current_order)
-                    best_teams = dict(current_teams)
-                    best_energy = current_energy
+                    # Keep track of absolute best
+                    if current_energy < best_energy:
+                        best_order = list(current_order)
+                        best_teams = dict(current_teams)
+                        best_energy = current_energy
 
-            # 6. Cool down
-            temperature *= self.cooling_rate
+                # 6. Cool down
+                temperature *= self.cooling_rate
 
         # 7. Decode best state back to Schedule
         final_assignments, _ = self._evaluate(problem, best_order, best_teams)
