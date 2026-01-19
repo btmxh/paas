@@ -70,6 +70,11 @@ class ContinuousIndexer(Middleware):
             )
             new_tasks[new_id] = new_task
 
+        print(
+            f"ContinuousIndexer: Remapped {len(original_ids)} tasks to continuous indices.",
+            file=stderr,
+        )
+
         new_problem = ProblemInstance(
             num_tasks=len(new_tasks),
             num_teams=problem.num_teams,
@@ -79,6 +84,11 @@ class ContinuousIndexer(Middleware):
 
         # 3. Run next runnable
         schedule = next_runnable.run(new_problem, time_limit)
+
+        print(
+            f"ContinuousIndexer: Received schedule with {len(schedule.assignments)} assignments.",
+            file=stderr,
+        )
 
         # 4. Map result back
         new_assignments = []

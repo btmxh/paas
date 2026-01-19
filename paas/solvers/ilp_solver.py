@@ -1,10 +1,10 @@
 from ortools.linear_solver import pywraplp
 
-from paas.middleware.base import Runnable
+from paas.middleware.base import Solver
 from paas.models import ProblemInstance, Schedule, Assignment
 
 
-class ILPSolver(Runnable):
+class ILPSolver(Solver):
     """
     ILP Solver using OR-Tools (SAT backend via linear solver interface).
     Performs 3-stage optimization:

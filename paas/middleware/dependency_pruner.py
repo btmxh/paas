@@ -85,11 +85,10 @@ class DependencyPruner(MapProblem):
             )
             new_tasks[t_id] = new_task
 
-        if to_remove:
-            print(
-                f"DependencyPruner: Removed {len(to_remove)} tasks (broken dependencies).",
-                file=sys.stderr,
-            )
+        print(
+            f"DependencyPruner: Removed {len(to_remove)} tasks (broken dependencies).",
+            file=sys.stderr,
+        )
 
         return ProblemInstance(
             num_tasks=len(new_tasks),

@@ -1,6 +1,6 @@
 import unittest
 from io import StringIO
-from paas.parser import parse_input
+from paas.parser import parse_input, parse_solution
 
 
 class TestParser(unittest.TestCase):
@@ -48,6 +48,31 @@ class TestParser(unittest.TestCase):
         # Check teams
         self.assertEqual(problem.teams[1].available_from, 100)
         self.assertEqual(problem.teams[6].available_from, 90)
+
+    def test_parse_solution(self):
+        solution_data = """3
+1 2 100
+2 3 150
+3 1 200
+"""
+        schedule = parse_solution(StringIO(solution_data))
+
+        self.assertEqual(len(schedule.assignments), 3)
+
+        a1 = schedule.assignments[0]
+        self.assertEqual(a1.task_id, 1)
+        self.assertEqual(a1.team_id, 2)
+        self.assertEqual(a1.start_time, 100)
+
+        a2 = schedule.assignments[1]
+        self.assertEqual(a2.task_id, 2)
+        self.assertEqual(a2.team_id, 3)
+        self.assertEqual(a2.start_time, 150)
+
+        a3 = schedule.assignments[2]
+        self.assertEqual(a3.task_id, 3)
+        self.assertEqual(a3.team_id, 1)
+        self.assertEqual(a3.start_time, 200)
 
 
 if __name__ == "__main__":

@@ -33,9 +33,6 @@ class CycleRemover(MapProblem):
                 if node in tasks[node].successors:
                     cycle_tasks.update(scc)
 
-        if not cycle_tasks:
-            return problem
-
         # 2. Create new problem instance (removing only cycle tasks)
         new_tasks: Dict[int, Task] = {}
 
