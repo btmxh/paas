@@ -35,17 +35,17 @@ uv run -m unittest discover tests
 
 ### NixOS users
 
-Since Python support on NixOS can be complex, NixOS users are encouraged to use the provided Docker environment:
+Since Python support on NixOS can be complex, NixOS users are encouraged to use the provided Docker environment via wrappers in `bin/`:
 
 ```bash
 # Setup/Update dependencies
-docker compose run --rm dev uv sync
+./bin/uv sync
 
 # Run the solver on an input file
-docker compose run --rm dev uv run -m paas.main < data/simple/example.txt
+./bin/uv run -m paas.main < data/simple/example.txt
 
 # Run all tests
-docker compose run --rm dev uv run -m unittest discover tests
+./bin/uv run -m unittest discover tests
 ```
 
 > **Note**: Maintain compatibility with **Python 3.8** for Hustack submissions (use `typing.List` instead of `list`, etc.).
