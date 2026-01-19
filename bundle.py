@@ -1,7 +1,7 @@
 import ast
 import sys
 from pathlib import Path
-from typing import Set, List, Tuple
+from typing import Set, List, Tuple, Dict, Optional
 
 # Configuration
 ROOT_DIR = Path(__file__).parent.resolve()
@@ -33,11 +33,13 @@ def find_imports(file_path: Path) -> List[Tuple[str, int]]:
     return imports
 
 
-def resolve_module(current_file: Path, module_name: str, level: int) -> Path:
+def resolve_module(current_file: Path, module_name: Optional[str], level: int) -> Path:
     """
     Resolves a module import to a file path.
     """
     if level == 0:
+        if not module_name:
+            raise ValueError("Absolute import must have a module name")
         # Absolute import e.g. paas.models
         parts = module_name.split(".")
         # parts[0] is 'paas', which maps to ROOT_DIR/paas
@@ -63,9 +65,58 @@ def resolve_module(current_file: Path, module_name: str, level: int) -> Path:
     if (candidate / "__init__.py").exists():
         return candidate / "__init__.py"
 
+    # It might be a directory without __init__.py (namespace pkg), but purely for file resolution
+    # we assume standard packages.
+    # Check if it's the package dir itself (e.g. "paas")
+    if (
+        candidate.exists()
+        and candidate.is_dir()
+        and (candidate / "__init__.py").exists()
+    ):
+        return candidate / "__init__.py"
+
     raise FileNotFoundError(
         f"Could not resolve module {module_name} (level {level}) from {current_file}"
     )
+
+
+def get_package_exports(init_path: Path) -> Dict[str, Path]:
+    """
+    Parses an __init__.py file and attempts to map exported names to source files.
+    Returns a dict: name -> source_file_path.
+    """
+    exports = {}
+    try:
+        with open(init_path, "r", encoding="utf-8") as f:
+            tree = ast.parse(f.read(), filename=str(init_path))
+    except Exception as e:
+        print(f"Warning: Failed to parse {init_path} for exports: {e}")
+        return {}
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            # Handle: from .module import Name
+            # Handle: from . import module
+
+            # Determine source module path
+            try:
+                source_path = resolve_module(init_path, node.module, node.level)
+            except FileNotFoundError:
+                continue
+
+            for alias in node.names:
+                name = alias.asname or alias.name
+                if alias.name == "*":
+                    # Wildcard import re-export - hard to track without parsing source.
+                    # Ignore for now, or could map "*" -> source_path (special handling needed)
+                    continue
+
+                # If we imported a module (from . import module), then 'module' is the name
+                # If we imported a symbol (from .module import Symbol), then 'Symbol' is the name
+                # In both cases, source_path points to the file defining it.
+                exports[name] = source_path
+
+    return exports
 
 
 def get_dependencies(file_path: Path) -> List[Path]:
@@ -79,10 +130,53 @@ def get_dependencies(file_path: Path) -> List[Path]:
                 if alias.name.startswith(PACKAGE_NAME):
                     deps.append(resolve_module(file_path, alias.name, 0))
         elif isinstance(node, ast.ImportFrom):
-            if node.module and node.module.startswith(PACKAGE_NAME):
-                deps.append(resolve_module(file_path, node.module, 0))
-            elif node.module and node.level > 0:
-                deps.append(resolve_module(file_path, node.module, node.level))
+            target_path = None
+            try:
+                if node.module and node.module.startswith(PACKAGE_NAME):
+                    target_path = resolve_module(file_path, node.module, 0)
+                elif node.level > 0:
+                    target_path = resolve_module(file_path, node.module, node.level)
+            except FileNotFoundError as e:
+                print(f"Warning: {e}")
+                continue
+
+            if target_path and target_path.name == "__init__.py":
+                # Smart resolution: try to bypass __init__.py if we can find sources for all names
+                exports = get_package_exports(target_path)
+                resolved_files = set()
+                all_resolved = True
+
+                for alias in node.names:
+                    if alias.name == "*":
+                        all_resolved = False
+                        break
+
+                    if alias.name in exports:
+                        resolved_files.add(exports[alias.name])
+                    else:
+                        # Check if alias.name is a submodule (e.g. from paas.middleware import base)
+                        # target_path is paas/middleware/__init__.py
+                        # Check paas/middleware/base.py
+                        possible_submodule = target_path.parent / f"{alias.name}.py"
+                        if possible_submodule.exists():
+                            resolved_files.add(possible_submodule)
+                        else:
+                            possible_pkg = (
+                                target_path.parent / alias.name / "__init__.py"
+                            )
+                            if possible_pkg.exists():
+                                resolved_files.add(possible_pkg)
+                            else:
+                                all_resolved = False
+                                break
+
+                if all_resolved and resolved_files:
+                    deps.extend(list(resolved_files))
+                else:
+                    # Fallback to including the whole package
+                    deps.append(target_path)
+            elif target_path:
+                deps.append(target_path)
 
     return list(set(deps))
 
