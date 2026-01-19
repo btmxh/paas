@@ -23,15 +23,11 @@ class SimulatedAnnealingRefiner(MapResult):
     def __init__(
         self,
         initial_temp: float = 1000.0,
-        cooling_rate: float = 0.98,
-        max_iterations: int = 5000,
         seed: int = 42,
         time_factor: float = 1.0,
     ):
         super().__init__(time_factor)
         self.initial_temp = initial_temp
-        self.cooling_rate = cooling_rate
-        self.max_iterations = max_iterations
         self.seed = seed
 
     def map_result(
@@ -67,7 +63,6 @@ class SimulatedAnnealingRefiner(MapResult):
         temperature = self.initial_temp
 
         use_time_limit = time_limit != float("inf")
-        iteration = 0
 
         with TimeBudget.from_seconds(time_limit) as budget:
             while True:
@@ -75,11 +70,16 @@ class SimulatedAnnealingRefiner(MapResult):
                 if use_time_limit:
                     if budget.is_expired():
                         break
-                else:
-                    if iteration >= self.max_iterations:
-                        break
 
-                iteration += 1
+                    # Update temperature based on remaining time
+                    # Linear cooling schedule: T = T_start * (remaining / total)
+                    remaining = budget.remaining()
+                    # Ensure remaining is non-negative and <= time_limit
+                    ratio = max(0.0, min(1.0, remaining / time_limit))
+                    temperature = self.initial_temp * ratio
+
+                # If infinite time, we technically run forever at initial_temp
+                # (or until externally killed, though this loop won't check external signals explicitly)
 
                 # 3. Create Neighbor (Mutation)
                 neighbor_order, neighbor_teams = self._mutate(
@@ -114,9 +114,6 @@ class SimulatedAnnealingRefiner(MapResult):
                         best_order = list(current_order)
                         best_teams = dict(current_teams)
                         best_energy = current_energy
-
-                # 6. Cool down
-                temperature *= self.cooling_rate
 
         # 7. Decode best state back to Schedule
         final_assignments, _ = self._evaluate(problem, best_order, best_teams)
