@@ -1,11 +1,38 @@
 from typing import TextIO, Iterator
-from .models import ProblemInstance, Task, Team
+from .models import ProblemInstance, Task, Team, Schedule, Assignment
 
 
 def _token_iterator(input_stream: TextIO) -> Iterator[str]:
     for line in input_stream:
         for token in line.split():
             yield token
+
+
+def parse_solution(input_stream: TextIO) -> Schedule:
+    """
+    Parses the solution output from the given text stream.
+
+    The format is expected to be:
+    - N (number of assigned tasks)
+    - N lines of assignments (task_id team_id start_time)
+    """
+    tokens = _token_iterator(input_stream)
+
+    try:
+        n_str = next(tokens)
+    except StopIteration:
+        raise ValueError("Solution input is empty")
+
+    num_assignments = int(n_str)
+    assignments = []
+
+    for _ in range(num_assignments):
+        task_id = int(next(tokens))
+        team_id = int(next(tokens))
+        start_time = int(next(tokens))
+        assignments.append(Assignment(task_id, team_id, start_time))
+
+    return Schedule(assignments)
 
 
 def parse_input(input_stream: TextIO) -> ProblemInstance:
