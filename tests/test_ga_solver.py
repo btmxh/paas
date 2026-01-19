@@ -27,13 +27,11 @@ class TestGASolver(unittest.TestCase):
         pipeline = Pipeline(
             middlewares=[
                 ContinuousIndexer(),
-                GAMiddleware(
-                    initial_population_size=5, max_population_size=10, max_generation=10
-                ),
+                GAMiddleware(initial_population_size=5, max_population_size=10),
             ],
             solver=solver,
         )
-        schedule = pipeline.run(problem)
+        schedule = pipeline.run(problem, time_limit=1.0)
 
         # Expect all tasks to be scheduled
         self.assertEqual(len(schedule.assignments), 3)
@@ -63,13 +61,11 @@ class TestGASolver(unittest.TestCase):
         pipeline = Pipeline(
             middlewares=[
                 ContinuousIndexer(),
-                GAMiddleware(
-                    initial_population_size=5, max_population_size=10, max_generation=10
-                ),
+                GAMiddleware(initial_population_size=5, max_population_size=10),
             ],
             solver=solver,
         )
-        schedule = pipeline.run(problem)
+        schedule = pipeline.run(problem, time_limit=1.0)
 
         assign_map = {a.task_id: a for a in schedule.assignments}
 
