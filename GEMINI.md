@@ -18,7 +18,7 @@ This document serves as a reference for the Gemini AI agent working on the PaaS 
 - **Typing:** Maintain compatibility with Python 3.8. Use legacy types from the `typing` module (e.g., `List[T]`, `Dict[K, V]`).
 
 ### Code Quality
-- **Pre-commit:** Standalone configuration in `.pre-commit-config.yaml`. It runs `ruff`, `check-yaml`, and other formatters.
+- **Pre-commit:** Managed via Nix (`flake.nix`). It runs `ruff`, `check-yaml`, and other formatters.
 - **Linting:** `ruff` is still available in the Nix environment for quick checks.
 - If a commit fails due to pre-commit checks, fix the issues and re-commit.
 
