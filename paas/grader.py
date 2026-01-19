@@ -98,6 +98,35 @@ class JuryNormalizer(Normalizer):
         return result
 
 
+class OptimalGapNormalizer(Normalizer):
+    """
+    Normalizes based on a reference optimal score.
+    Metrics indicate how far the score is from optimal (0.0 means optimal).
+    """
+
+    def normalize(
+        self, score: Score, instance: ProblemInstance, reference: Optional[Score] = None
+    ) -> Dict[str, float]:
+        if not reference:
+            return {}
+
+        result = {}
+        if reference.num_tasks > 0:
+            result["tasks_gap"] = (
+                reference.num_tasks - score.num_tasks
+            ) / reference.num_tasks
+        if reference.makespan > 0:
+            result["makespan_gap"] = (
+                score.makespan - reference.makespan
+            ) / reference.makespan
+        if reference.total_cost > 0:
+            result["cost_gap"] = (
+                score.total_cost - reference.total_cost
+            ) / reference.total_cost
+
+        return result
+
+
 class MultiInstanceGrader:
     """
     Utility for aggregating and normalizing scores across multiple instances.

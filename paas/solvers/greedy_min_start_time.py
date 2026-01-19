@@ -47,6 +47,14 @@ class GreedyMinStartTimeSolver(Solver):
             [tid for tid, task in tasks.items() if not task.predecessors]
         )
 
+        # SPT order, should not matter that much
+        root_task_ids.sort(
+            key=lambda tid: (
+                tasks[tid].duration,
+                min(tasks[tid].compatible_teams.values()),
+            )
+        )
+
         for task_id in root_task_ids:
             task = tasks[task_id]
 
