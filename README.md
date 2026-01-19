@@ -2,6 +2,11 @@
 
 HUST K67 Combinatorial Optimization Project.
 
+Project Assignment and Scheduling (PaaS) aims to schedule $N$ tasks to $M$ teams while satisfying precedence constraints, optimizing for:
+1. **Maximal tasks scheduled.**
+2. **Minimal completion time (makespan).**
+3. **Minimal total cost.**
+
 ### Original Implementations
 - [GA](https://github.com/NguyenHoangXuanSon/tulkh_2025.1)
 - [PSO & ACO](https://github.com/hungmanhbui1604/project-assignment-and-scheduling)
@@ -9,62 +14,59 @@ HUST K67 Combinatorial Optimization Project.
 
 ---
 
-## Commands
-- **Run**: `uv run -m paas.main < input.txt`
-- **Test**: `uv run -m unittest discover tests`
-- **Setup**: `uv sync`
+## Development Environment
 
-### NixOS-specific details (skip this if you don't know what that means)
+The project uses `uv` for dependency management.
 
-Since Python support on NixOS is pretty cancer, and that of Google dependencies
-is 100x worse, NixOS users should use some form of containerization like Docker.
-A docker compose file is provided for convenience.
+### Local Development (Recommended)
 
-To run commands on the Docker environment, run:
+If `uv` is installed on your system (Linux FHS, macOS, Windows):
+
+```bash
+# Setup/Update dependencies
+uv sync
+
+# Run the solver on an input file
+uv run -m paas.main < data/simple/example.txt
+
+# Run all tests
+uv run -m unittest discover tests
 ```
-docker compose run --rm dev [COMMAND]
 
-# e.g.
+### NixOS users
+
+Since Python support on NixOS can be complex, NixOS users are encouraged to use the provided Docker environment:
+
+```bash
+# Setup/Update dependencies
+docker compose run --rm dev uv sync
+
+# Run the solver on an input file
 docker compose run --rm dev uv run -m paas.main < data/simple/example.txt
+
+# Run all tests
+docker compose run --rm dev uv run -m unittest discover tests
 ```
 
-To run the `ty` LSP, run it through Docker. The provided `docker-compose.yaml`
-files make sure that the source files are mounted to the same exact path as on
-your system, however dependency Python files currently are not available since
-they only exist on the Docker environment. One could make some custom handling
-on Neovim to address this problem.
-
-## Recommended tooling (VSCode)
-
-_(Neo)Vim users should know which tooling to use by now._
-
-- [ruff](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff)
-- [ty](https://marketplace.visualstudio.com/items?itemName=astral-sh.ty)
-
-The default like Python extensions are not really necessary here, might
-even cause like conflicts with CI even.
+> **Note**: Maintain compatibility with **Python 3.8** for Hustack submissions (use `typing.List` instead of `list`, etc.).
 
 ---
 
 ## Submission to Hustack
 
-Since Hustack only accept one singular file for submissions, to submit code
-based on this project to the site, there exists a Python script to merge a
-file along with its dependencies. This tool is completely written by an AI,
-so it might break under certain circumstances.
+Hustack requires a single Python file for submission. Use `bundle.py` to merge the project into one script.
 
-First, create an `entry.py` file as follows:
-```py
-from paas.middleware.base import Pipeline
-from paas.middleware.cycle_remover import CycleRemover
-from paas.middleware.dependency_pruner import DependencyPruner
-from paas.middleware.impossible_task_remover import ImpossibleTaskRemover
-from paas.middleware.continuous_indexer import ContinuousIndexer
-from paas.middleware.ga_search import GAMiddleware
-from paas.parser import parse_input
-from paas.solvers.ga_greedy import GAGreedySolver
+1. Create an `entry.py` (or similar) that uses the pipeline:
+
+```python
 import sys
-
+from paas.parser import parse_input
+from paas.middleware.base import Pipeline
+from paas.middleware import (
+    ImpossibleTaskRemover, CycleRemover, DependencyPruner,
+    ContinuousIndexer, GAMiddleware, TabuSearchMiddleware
+)
+from paas.solvers.ga_greedy import GAGreedySolver
 
 def main():
     instance = parse_input(sys.stdin)
@@ -74,54 +76,41 @@ def main():
         DependencyPruner(),
         ContinuousIndexer(),
         GAMiddleware(),
+        TabuSearchMiddleware(),
     ]
-    # avoid checking when submitting to Hustack
+    # Set check=False to save time during submission
     pipeline = Pipeline(middlewares, GAGreedySolver(), check=False)
     solution = pipeline.run(instance)
     solution.print()
+
+if __name__ == "__main__":
+    main()
 ```
 
-This file uses GA to solve the problem, along with three pre-processing
-middlewares. Then, run:
-```sh
-# pass the --minify to get around the 50k characters limit
+2. Generate the submission file:
+
+```bash
 uv run bundle.py entry.py --minify
 ```
 
-To generate a `submission.py` to be submitted to Hustack.
+This will create `submission.py` ready for upload to Hustack.
+
+---
 
 ## Architecture
 
 ### 1. Models (`paas/models.py`)
-`Task`, `Team`, `ProblemInstance`, `Schedule`. Uses Python 3.8 compatible type hints.
+Core data structures including `Task`, `Team`, `ProblemInstance`, and `Schedule`.
 
 ### 2. Solvers (`paas/solvers/`)
-Any class with `run(problem) -> Schedule`.
-- `CPSolver`: Optimal (OR-Tools).
-- `GreedyMinStartTimeSolver`: Fast heuristic.
-- `ACOSolver`, `PSOSolver`: Metaheuristics.
-- `GAGreedySolver`, `TabuGreedySolver`: Greedy constructive heuristics (optimized).
+Algorithms that generate a schedule for a given problem:
+- `CPSolver`: Optimal scheduling using Constraint Programming (OR-Tools).
+- `GreedyMinStartTimeSolver`: Simple and fast heuristic.
+- `ACOSolver` / `PSOSolver`: Ant Colony and Particle Swarm Optimization.
+- `GAGreedySolver` / `TabuGreedySolver`: Constructive heuristics using GA/Tabu search.
+- `ILPSolver`: Integer Linear Programming approach.
 
 ### 3. Middlewares (`paas/middleware/`)
-Preprocessing and postprocessing layers. **Order is critical.**
-
-Two main middleware base implementations:
-- `MapProblem`: transform a problem into a more simple one, e.g.
-  1. `CycleRemover`: Breaks dependency cycles.
-  2. `ImpossibleTaskRemover`: Removes tasks no team can do.
-  3. `DependencyPruner`: Cleans up tasks whose predecessors were removed in previous steps.
-  4. `ContinuousIndexer`: Re-indexes tasks/teams to 0..N-1 for optimized solvers.
-- `MapResult`: improve a solution further (e.g. local search)
-  - `GAMiddleware`: Genetic Algorithm refinement.
-  - `TabuSearchMiddleware`: Tabu Search refinement.
-
----
-
-## Contributing
-
-- **New Solver**: Implement `run(problem: ProblemInstance) -> Schedule` in `paas/solvers/`.
-- **New Middleware**: Inherit from `MapProblem` or `MapResult` in `paas/middleware/base.py`.
-- **Dependencies**: Use `uv`. Manage dependencies via `pyproject.toml`.
-- **Formatting**: Handled by `ruff` on commit.
-- **Python**: 3.8 compatibility is mandatory if you want to submit code to
-  Hustack (`List[T]` not `list[T]`).
+Layers for problem transformation and solution refinement:
+- **Preprocessing**: `CycleRemover`, `ImpossibleTaskRemover`, `DependencyPruner`, `ContinuousIndexer`.
+- **Optimization**: `GAMiddleware`, `TabuSearchMiddleware`, `HillClimbingMiddleware`.
