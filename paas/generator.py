@@ -10,7 +10,7 @@ def generate_instance(
     max_duration: int = 100,
     max_start_time: int = 100,
     max_cost: int = 100,
-    seed: int = None,
+    seed: int = 42,
 ) -> ProblemInstance:
     if seed is not None:
         random.seed(seed)
