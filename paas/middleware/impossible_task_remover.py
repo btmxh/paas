@@ -10,16 +10,15 @@ class ImpossibleTaskRemover(MapProblem):
     from the predecessor/successor lists of other tasks (Soft Dependency).
     """
 
-    def map_problem(self, problem: ProblemInstance) -> ProblemInstance:
+    def map_problem(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> ProblemInstance:
         tasks = problem.tasks
         to_remove = set()
 
         for t_id, task in tasks.items():
             if not task.compatible_teams:
                 to_remove.add(t_id)
-
-        if not to_remove:
-            return problem
 
         new_tasks = {}
 

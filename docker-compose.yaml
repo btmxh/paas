@@ -3,7 +3,7 @@ services:
     image: ghcr.io/astral-sh/uv:debian-slim
     volumes:
       - .:${PWD}
-      - ${PWD}.venv
+      - ${PWD}/.venv
       - paas-uv-cache:/root/.cache/uv
       - paas-uv-local:/root/.local/share/uv
     working_dir: ${PWD}

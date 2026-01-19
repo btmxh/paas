@@ -17,7 +17,9 @@ class CycleRemover(MapProblem):
     # So I don't need to change CycleRemover unless it overrides run.
     # It implements map_problem.
 
-    def map_problem(self, problem: ProblemInstance) -> ProblemInstance:
+    def map_problem(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> ProblemInstance:
         tasks = problem.tasks
 
         # 1. Identify tasks involved in cycles (SCCs)
@@ -32,9 +34,6 @@ class CycleRemover(MapProblem):
                 # Check for self-loop
                 if node in tasks[node].successors:
                     cycle_tasks.update(scc)
-
-        if not cycle_tasks:
-            return problem
 
         # 2. Create new problem instance (removing only cycle tasks)
         new_tasks: Dict[int, Task] = {}

@@ -28,25 +28,17 @@ class CPSolver(Solver):
             horizon = max_duration + max_start + 1000
 
             # Lexicographical optimization:
-            # 1. Maximize number of tasks
-            max_tasks = self._solve_max_tasks(problem, horizon, budget)
-            if max_tasks == 0:
-                return Schedule(assignments=[])
+            # 1. Minimize completion time
+            min_makespan = self._solve_min_makespan(problem, horizon, budget)
 
-            # 2. Minimize completion time
-            min_makespan = self._solve_min_makespan(problem, horizon, max_tasks, budget)
-
-            # 3. Minimize total cost
-            assignments = self._solve_min_cost(
-                problem, horizon, max_tasks, min_makespan, budget
-            )
+            # 2. Minimize total cost
+            assignments = self._solve_min_cost(problem, horizon, min_makespan, budget)
 
             return Schedule(assignments=assignments)
 
     def _create_base_model(self, problem: ProblemInstance, horizon: int):
         model = cp_model.CpModel()
 
-        assigned = {}  # task_id -> bool var
         start_times = {}  # task_id -> int var
         end_times = {}  # task_id -> int var
         presence = {}  # (task_id, team_id) -> bool var
@@ -56,7 +48,6 @@ class CPSolver(Solver):
 
         # Initialize variables for all tasks first
         for task_id, task in problem.tasks.items():
-            assigned[task_id] = model.NewBoolVar(f"assigned_{task_id}")
             start_times[task_id] = model.NewIntVar(0, horizon, f"start_{task_id}")
             end_times[task_id] = model.NewIntVar(0, horizon, f"end_{task_id}")
             model.Add(end_times[task_id] == start_times[task_id] + task.duration)
@@ -86,56 +77,32 @@ class CPSolver(Solver):
                     start_times[task_id] >= problem.teams[team_id].available_from
                 ).OnlyEnforceIf(p_var)
 
-            model.Add(sum(task_team_vars) == assigned[task_id])
+            model.Add(sum(task_team_vars) == 1)
 
             # Precedence constraints
             for pred_id in task.predecessors:
-                if pred_id in assigned:
-                    # If task is assigned, all its predecessors must be assigned
-                    model.Add(assigned[task_id] <= assigned[pred_id])
+                if pred_id in problem.tasks:
                     # precedence
-                    model.Add(start_times[task_id] >= end_times[pred_id]).OnlyEnforceIf(
-                        assigned[task_id]
-                    )
-                else:
-                    # If predecessor was removed by middleware, this task cannot be assigned
-                    model.Add(assigned[task_id] == 0)
+                    model.Add(start_times[task_id] >= end_times[pred_id])
 
         # Team NoOverlap
         for team_id, team_intervals in intervals.items():
             if team_intervals:
                 model.AddNoOverlap(team_intervals)
 
-        return model, assigned, start_times, presence, end_times
-
-    def _solve_max_tasks(
-        self, problem: ProblemInstance, horizon: int, budget: TimeBudget
-    ) -> int:
-        model, assigned, _, _, _ = self._create_base_model(problem, horizon)
-        model.Maximize(sum(assigned.values()))
-
-        solver = cp_model.CpSolver()
-        if budget.remaining() < float("inf"):
-            solver.parameters.max_time_in_seconds = budget.remaining()
-
-        status = solver.Solve(model)
-
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            return int(solver.ObjectiveValue())
-        return 0
+        return model, start_times, presence, end_times
 
     def _solve_min_makespan(
-        self, problem: ProblemInstance, horizon: int, max_tasks: int, budget: TimeBudget
+        self, problem: ProblemInstance, horizon: int, budget: TimeBudget
     ) -> int:
-        model, assigned, _, _, end_times = self._create_base_model(problem, horizon)
-
-        # Constraint: max tasks
-        model.Add(sum(assigned.values()) == max_tasks)
+        model, start_times, presence, end_times = self._create_base_model(
+            problem, horizon
+        )
 
         # Define makespan
         makespan = model.NewIntVar(0, horizon, "makespan")
         for task_id in problem.tasks:
-            model.Add(makespan >= end_times[task_id]).OnlyEnforceIf(assigned[task_id])
+            model.Add(makespan >= end_times[task_id])
 
         model.Minimize(makespan)
 
@@ -153,21 +120,15 @@ class CPSolver(Solver):
         self,
         problem: ProblemInstance,
         horizon: int,
-        max_tasks: int,
         min_makespan: int,
         budget: TimeBudget,
     ) -> List[Assignment]:
-        model, assigned, start_times, presence, end_times = self._create_base_model(
+        model, start_times, presence, end_times = self._create_base_model(
             problem, horizon
         )
 
-        # Constraints from previous stages
-        model.Add(sum(assigned.values()) == max_tasks)
-
         for task_id in problem.tasks:
-            model.Add(end_times[task_id] <= min_makespan).OnlyEnforceIf(
-                assigned[task_id]
-            )
+            model.Add(end_times[task_id] <= min_makespan)
 
         # Objective: minimize cost
         total_cost = []
@@ -186,19 +147,18 @@ class CPSolver(Solver):
         assignments = []
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             for task_id in problem.tasks:
-                if solver.Value(assigned[task_id]):
-                    # Find which team
-                    assigned_team = -1
-                    for team_id in problem.tasks[task_id].compatible_teams:
-                        if solver.Value(presence[(task_id, team_id)]):
-                            assigned_team = team_id
-                            break
+                # Find which team
+                assigned_team = -1
+                for team_id in problem.tasks[task_id].compatible_teams:
+                    if solver.Value(presence[(task_id, team_id)]):
+                        assigned_team = team_id
+                        break
 
-                    assignments.append(
-                        Assignment(
-                            task_id=task_id,
-                            team_id=assigned_team,
-                            start_time=solver.Value(start_times[task_id]),
-                        )
+                assignments.append(
+                    Assignment(
+                        task_id=task_id,
+                        team_id=assigned_team,
+                        start_time=solver.Value(start_times[task_id]),
                     )
+                )
         return assignments

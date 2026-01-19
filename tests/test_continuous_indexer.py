@@ -38,9 +38,9 @@ class MockSolver(Runnable):
 
         # Return a schedule using new IDs
         assignments = [
-            Assignment(task_id=0, team_id=100, start_time=0),
-            Assignment(task_id=1, team_id=100, start_time=10),
-            Assignment(task_id=2, team_id=100, start_time=20),
+            Assignment(task_id=0, team_id=0, start_time=0),
+            Assignment(task_id=1, team_id=0, start_time=10),
+            Assignment(task_id=2, team_id=0, start_time=20),
         ]
         return Schedule(assignments=assignments)
 

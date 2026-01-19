@@ -1,14 +1,17 @@
 from paas.models import ProblemInstance, Schedule, Assignment
-from paas.middleware.base import Runnable
+from paas.middleware.base import Solver
 
 
-class CriticalPathSlackSolver(Runnable):
+class CriticalPathSlackSolver(Solver):
     """
     Optimized Scheduler:
     1. Critical Path (Time)
     2. Slack-Aware Cost (Cost)
     3. Versatility/Scarcity (Tie-Breaker for resource management)
     """
+
+    def __init__(self, time_factor: float = 0.0):
+        super().__init__(time_factor)
 
     def run(self, problem: ProblemInstance, time_limit=float("inf")) -> Schedule:
         tasks = problem.tasks

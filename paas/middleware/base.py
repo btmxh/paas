@@ -1,3 +1,5 @@
+from sys import stderr
+from paas.checker import validate_schedule
 from abc import ABC, abstractmethod
 from typing import Protocol, List, Optional
 
@@ -62,11 +64,13 @@ class MapProblem(Middleware):
         next_runnable: Runnable,
         time_limit: float = float("inf"),
     ) -> Schedule:
-        new_problem = self.map_problem(problem)
-        return next_runnable.run(new_problem)
+        new_problem = self.map_problem(problem, time_limit=time_limit)
+        return next_runnable.run(new_problem, time_limit=time_limit)
 
     @abstractmethod
-    def map_problem(self, problem: ProblemInstance) -> ProblemInstance:
+    def map_problem(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> ProblemInstance:
         """
         Transform the problem instance.
         """
@@ -85,7 +89,7 @@ class MapResult(Middleware):
         next_runnable: Runnable,
         time_limit: float = float("inf"),
     ) -> Schedule:
-        result = next_runnable.run(problem)
+        result = next_runnable.run(problem, time_limit=time_limit)
         return self.map_result(problem, result, time_limit=time_limit)
 
     @abstractmethod
@@ -148,10 +152,12 @@ class Pipeline(Runnable):
         middlewares: List[Middleware],
         solver: Solver,
         total_budget: Optional[TimeBudget] = None,
+        check: bool = True,
     ):
         self.middlewares = middlewares
         self.solver = solver
         self.total_budget = total_budget
+        self.check = check
 
     def run(
         self, problem: ProblemInstance, time_limit: float = float("inf")
@@ -195,4 +201,11 @@ class Pipeline(Runnable):
             for m in reversed(self.middlewares):
                 pipeline = _WrappedRunnable(m, pipeline)
 
-        return pipeline.run(problem)
+        schedule = pipeline.run(problem)
+        if self.check:
+            result = validate_schedule(problem, schedule)
+            if not result.is_valid:
+                print("Warning: The produced schedule is invalid:", file=stderr)
+                for error in result.errors:
+                    print(f"- {error.message}", file=stderr)
+        return schedule
