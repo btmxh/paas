@@ -25,14 +25,12 @@ class GAMiddleware(MapResult):
         self,
         initial_population_size: int = 50,
         max_population_size: int = 200,
-        max_generation: int = 100,
         seed: int = 8,
         time_factor: float = 1.0,
     ):
         super().__init__(time_factor)
         self.initial_population_size = initial_population_size
         self.max_population_size = max_population_size
-        self.max_generation = max_generation
         self.seed = seed
 
         # Preprocessed data
@@ -266,7 +264,7 @@ class GAMiddleware(MapResult):
             best_score = self._evaluate(best_ind)
 
             generation = 0
-            while not budget.is_expired() and generation < self.max_generation:
+            while not budget.is_expired():
                 generation += 1
                 population.sort(key=lambda x: self._evaluate(x))
                 current_best = population[0]
