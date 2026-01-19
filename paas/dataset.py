@@ -47,3 +47,21 @@ class Dataset:
                 )
             )
         return Dataset(instances)
+
+    @staticmethod
+    def generated() -> "Dataset":
+        instances = []
+        directory = "data/generated_dataset"
+        if not os.path.exists(directory):
+            return Dataset([])
+
+        for filename in sorted(os.listdir(directory)):
+            if filename.endswith(".txt"):
+                input_path = os.path.join(directory, filename)
+                instance_id = filename[:-4]  # Remove .txt
+
+                with open(input_path, "r") as f:
+                    problem = parse_input(f)
+
+                instances.append(Instance(instance_id, problem))
+        return Dataset(instances)
