@@ -1,6 +1,6 @@
 from sys import stderr, stdout
 from paas.middleware import ContinuousIndexer
-from paas.solvers import ILPSolver
+from paas.solvers import CPSolver
 import json
 import time
 import concurrent.futures
@@ -63,7 +63,7 @@ def new_pipeline() -> Pipeline:
             DependencyPruner(),
             ContinuousIndexer(),
         ],
-        solver=ILPSolver(),
+        solver=CPSolver(),
     )
 
 

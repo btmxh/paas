@@ -10,6 +10,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 try:
+    from paas.checker import validate_schedule
     from paas.parser import parse_input, parse_solution
     from paas.grader import grade_schedule
 except ImportError as e:
@@ -44,6 +45,12 @@ def main():
         with open(args.solution_file, "r") as f:
             solution = parse_solution(f)
 
+        valid_result = validate_schedule(problem, solution)
+        if not valid_result.is_valid:
+            print("Solution is invalid:")
+            for error in valid_result.errors:
+                print(f"- {error.message}")
+            sys.exit(1)
         score = grade_schedule(problem, solution)
 
         print(f"Tasks: {score.num_tasks}")
