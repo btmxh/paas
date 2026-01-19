@@ -1,5 +1,6 @@
 import sys
 import random
+import heapq
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
 from paas.models import ProblemInstance, Schedule, Assignment
@@ -48,6 +49,8 @@ class GASolver(Solver):
         self.num_teams: int = 0
         self.durations: List[int] = []
         self.predecessors: List[List[int]] = []
+        self.successors: List[List[int]] = []
+        self.initial_in_degrees: List[int] = []
         self.compatible_teams_indices: List[List[int]] = []
         self.team_costs: List[List[int]] = []  # matrix [task_id][team_idx]
         self.team_initial_availability: List[int] = []
@@ -80,6 +83,8 @@ class GASolver(Solver):
         # 2. Task Data Structures (Pre-allocate for speed)
         self.durations = [0] * self.num_tasks
         self.predecessors = [[] for _ in range(self.num_tasks)]
+        self.successors = [[] for _ in range(self.num_tasks)]
+        self.initial_in_degrees = [0] * self.num_tasks
         self.compatible_teams_indices = [[] for _ in range(self.num_tasks)]
 
         # Use a large number for incompatible cost (Infinity)
@@ -92,6 +97,8 @@ class GASolver(Solver):
             # Direct index access (No dictionary lookups or bounds checking needed)
             self.durations[tid] = task.duration
             self.predecessors[tid] = task.predecessors
+            self.successors[tid] = task.successors
+            self.initial_in_degrees[tid] = len(task.predecessors)
 
             if task.compatible_teams:
                 self.tasks_with_teams.append(tid)
@@ -104,118 +111,59 @@ class GASolver(Solver):
 
     def _decode(self, individual: Individual) -> List[Assignment]:
         """
-        Decode using array lookups.
+        Decode using topological sort with priority queue.
+        Resolves dependencies efficiently (O(N log N)).
         """
-        # team_available: array of size M
-        team_available = list(self.team_initial_availability)
+        # Map task_id -> priority (index in task_order)
+        # Lower index = higher priority
+        priority = [0] * self.num_tasks
+        for rank, tid in enumerate(individual.task_order):
+            priority[tid] = rank
 
-        # task_finish_times: array of size N, initialized to -1 (not finished)
+        # Setup simulation state
+        team_available = list(self.team_initial_availability)
         task_finish_times = [-1] * self.num_tasks
+        current_in_degrees = list(self.initial_in_degrees)
 
         assignments: List[Assignment] = []
 
-        # Optimization: Use a list for todo instead of creating new lists
-        # But we need to check dependencies.
-        # For a valid topological sort, we can just iterate.
-        # But the GA generates arbitrary permutations.
-        # We must skip tasks whose predecessors are not ready.
+        # Priority queue stores (rank, task_id)
+        # We only add tasks that are ready (in_degree == 0)
+        ready_heap = []
+        for tid in self.tasks_with_teams:
+            if current_in_degrees[tid] == 0:
+                heapq.heappush(ready_heap, (priority[tid], tid))
 
-        todo = individual.task_order
-        # todo is a list of task IDs.
+        while ready_heap:
+            _, task_id = heapq.heappop(ready_heap)
 
-        # We need to iterate until all possible tasks are scheduled.
-        # Since checking dependencies can be slow if we scan the whole list repeatedly.
-        # Ideally, we'd maintain in-degree, but that depends on order? No, dependencies are fixed.
-        # But we want to respect the order in `todo` as a priority.
+            team_idx = individual.team_assignment[task_id]
 
-        # Standard approach: iterate through todo, pick first available, remove, repeat.
-        # Optimized:
-        # Keep a set/boolean array of finished tasks? `task_finish_times[p] != -1` is enough.
+            # Determine start time based on dependencies
+            preds_complete_time = 0
+            for p in self.predecessors[task_id]:
+                # p must be finished because we only process when in_degree=0
+                # and we process in dependency order.
+                p_finish = task_finish_times[p]
+                if p_finish > preds_complete_time:
+                    preds_complete_time = p_finish
 
-        # Since 'todo' can be large, scanning it repeatedly is O(N^2).
-        # Can we do better?
-        # The gene defines a *priority*.
-        # We can try to schedule in the order of the gene.
-        # If a task is not ready, we delay it.
-        # Actually, the standard "permutation decoding" for scheduling usually means:
-        # "Take tasks in the order they appear in the chromosome. If ready, schedule. If not, wait?"
-        # If we skip and come back, that's complex.
-        #
-        # Alternative Interpretation: The chromosome represents a Topological Sort?
-        # If we enforce the chromosome to be a valid topological sort, decoding is O(N).
-        # But GA operations destroy topological property.
-        #
-        # A common approach is: The chromosome is a priority list.
-        # We simulate:
-        # Set of ready tasks S (initially those with no preds).
-        # But we have a priority list P.
-        # Pick the first task in P that is in S. Schedule it. Update S. Remove from P.
-        # This is O(N^2) if naive.
+            start_time = max(team_available[team_idx], preds_complete_time)
+            duration = self.durations[task_id]
+            finish_time = start_time + duration
 
-        # For this implementation, let's stick to the previous logic but with array lookups.
-        # It handles the "wait for predecessors" by repeated scanning.
+            task_finish_times[task_id] = finish_time
+            team_available[team_idx] = finish_time
 
-        pending = list(todo)  # Copy
+            assignments.append(Assignment(task_id, team_idx, start_time))
 
-        # We can optimize the check by remembering where we left off?
-        # No, because a task later in the list might unblock a task earlier.
-
-        while pending:
-            progress = False
-            next_pending = []
-
-            for task_id in pending:
-                # Check predecessors
-                preds = self.predecessors[task_id]
-                preds_done = True
-                preds_complete_time = 0
-
-                for p in preds:
-                    ft = task_finish_times[p]
-                    if ft == -1:
-                        preds_done = False
-                        break
-                    if ft > preds_complete_time:
-                        preds_complete_time = ft
-
-                if not preds_done:
-                    next_pending.append(task_id)
-                    continue
-
-                # Schedule
-                team_idx = individual.team_assignment[task_id]
-
-                # Check if compatible (in case mutation messed up, though we should control mutation)
-                # But for speed we assume valid team_idx if we control generation.
-                # However, if team_idx is not compatible (cost INF), we should penalize or skip?
-                # The fitness function handles cost. Here we just schedule.
-                # If cost is INF, it will be penalized.
-
-                start_time = max(team_available[team_idx], preds_complete_time)
-                duration = self.durations[task_id]
-                finish_time = start_time + duration
-
-                # Record assignment
-                # We need original team ID for the final output, but for fitness we don't.
-                # We defer creating Assignment objects until final output if possible?
-                # But _evaluate needs them.
-                # Let's create a lightweight struct or tuple?
-                # Actually, _evaluate only needs counts and times.
-
-                task_finish_times[task_id] = finish_time
-                team_available[team_idx] = finish_time
-
-                # For fitness calculation, we need to know we scheduled it.
-                # We can construct assignments list.
-                assignments.append(Assignment(task_id, team_idx, start_time))
-
-                progress = True
-
-            if not progress:
-                # Deadlock or cycle (should not happen if input is DAG)
-                break
-
-            pending = next_pending
+            # Unlock successors
+            for s in self.successors[task_id]:
+                current_in_degrees[s] -= 1
+                if current_in_degrees[s] == 0:
+                    # Only add if it's a schedulable task (in tasks_with_teams)
+                    if self.compatible_teams_indices[s]:
+                        heapq.heappush(ready_heap, (priority[s], s))
 
         return assignments
 
@@ -265,36 +213,45 @@ class GASolver(Solver):
 
     def _generate_greedy_individual(self) -> Individual:
         # Array based greedy
+        # We need to reimplement this because the old one relied on iterative scanning.
+        # But we can also use the heap-based approach here implicitly?
+        # Actually, greedy construction usually builds the order AND assignment dynamically.
+        # But we need to return an Individual (task_order, team_assignment).
+        # We can construct the order by appending tasks as we pick them.
+
         team_available = list(self.team_initial_availability)
         task_finish_times = [-1] * self.num_tasks
+        current_in_degrees = list(self.initial_in_degrees)
 
         task_order = []
         team_assignment = [0] * self.num_tasks
 
-        remaining = set(self.tasks_with_teams)
+        # Candidates are tasks with in_degree 0
+        # We don't have a priority yet, we want to FIND the best one.
+        # So we just keep a set of candidates.
+        candidates = set()
+        for tid in self.tasks_with_teams:
+            if current_in_degrees[tid] == 0:
+                candidates.add(tid)
 
-        while remaining:
+        processed_count = 0
+        total_tasks = len(self.tasks_with_teams)
+
+        while candidates:
             best_task = -1
             best_team_idx = -1
             best_start = sys.maxsize
             best_cost = sys.maxsize
 
-            for tid in remaining:
-                # Check preds
-                preds_done = True
+            # Evaluate all candidates
+            for tid in candidates:
+                # Preds are guaranteed done
                 pred_done_time = 0
                 for p in self.predecessors[tid]:
                     ft = task_finish_times[p]
-                    if ft == -1:
-                        preds_done = False
-                        break
                     if ft > pred_done_time:
                         pred_done_time = ft
 
-                if not preds_done:
-                    continue
-
-                # Check teams
                 for team_idx in self.compatible_teams_indices[tid]:
                     cost = self.team_costs[tid][team_idx]
                     start = max(team_available[team_idx], pred_done_time)
@@ -306,20 +263,38 @@ class GASolver(Solver):
                         best_cost = cost
 
             if best_task == -1:
-                # Fill remaining
-                for tid in remaining:
-                    task_order.append(tid)
-                    opts = self.compatible_teams_indices[tid]
-                    if opts:
-                        team_assignment[tid] = opts[0]
+                # Should not happen if DAG is valid and candidates exist
+                # But if no candidates found (e.g. all compatible teams blocked? No, waiting is allowed)
+                # If best_task stays -1, it means candidates was empty? No, loop runs if candidates not empty.
+                # Maybe compatible_teams_indices is empty for a task?
+                # tasks_with_teams only includes tasks with compatible teams.
                 break
 
             task_order.append(best_task)
             team_assignment[best_task] = best_team_idx
+
             finish = best_start + self.durations[best_task]
             task_finish_times[best_task] = finish
             team_available[best_team_idx] = finish
-            remaining.remove(best_task)
+
+            candidates.remove(best_task)
+            processed_count += 1
+
+            # Unlock successors
+            for s in self.successors[best_task]:
+                current_in_degrees[s] -= 1
+                if current_in_degrees[s] == 0:
+                    if self.compatible_teams_indices[s]:
+                        candidates.add(s)
+
+        # If not all tasks scheduled (e.g. disconnected components or logic error?), fill remainder
+        if processed_count < total_tasks:
+            remaining = set(self.tasks_with_teams) - set(task_order)
+            for tid in remaining:
+                task_order.append(tid)
+                opts = self.compatible_teams_indices[tid]
+                if opts:
+                    team_assignment[tid] = opts[0]
 
         return Individual(task_order=task_order, team_assignment=team_assignment)
 
