@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 from paas.dataset import Instance
-from paas.main import run_single_experiment
+from paas.hustack_main import run_single_experiment
 from paas.models import ProblemInstance, Schedule, Assignment
 from paas.grader import Score
 
