@@ -84,7 +84,8 @@ def main():
 This file uses GA to solve the problem, along with three pre-processing
 middlewares. Then, run:
 ```sh
-uv run bundle.py entry.py
+# pass the --minify to get around the 50k characters limit
+uv run bundle.py entry.py --minify
 ```
 
 To generate a `submission.py` to be submitted to Hustack.
