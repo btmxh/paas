@@ -55,57 +55,51 @@ class GASolver(Solver):
         self.tasks_with_teams: List[int] = []
 
     def _preprocess(self, problem: ProblemInstance):
-        """Prepare internal data structures for fast access."""
+        """
+        Prepare internal data structures for fast access.
+
+        Optimized for ContinuousIndexer:
+        - Assumes Task keys are integers 0..N-1
+        - Assumes Team keys are integers 0..M-1
+        """
         self.num_tasks = problem.num_tasks
         self.num_teams = problem.num_teams
 
-        # Map teams to 0..M-1
-        self.team_idx_to_id = sorted(problem.teams.keys())
-        team_id_to_idx = {tid: i for i, tid in enumerate(self.team_idx_to_id)}
+        # 1. Team Availability
+        # Since team keys are 0..M-1, we can map directly to list indices.
+        # We create a list where index `i` corresponds to team ID `i`.
+        self.team_initial_availability = [0] * self.num_teams
+        for tid, team in problem.teams.items():
+            self.team_initial_availability[tid] = team.available_from
 
-        self.team_initial_availability = [
-            problem.teams[tid].available_from for tid in self.team_idx_to_id
-        ]
+        # We keep this for the 'run' method's final reconstruction step,
+        # ensuring it maps index i -> ID i.
+        self.team_idx_to_id = list(range(self.num_teams))
 
-        # Process tasks
-        # Assumption: Task IDs are 0..N-1.
-        # Verify assumption lightly (check max ID)
-        if problem.tasks:
-            max_task_id = max(problem.tasks.keys())
-            if max_task_id >= self.num_tasks:
-                # If IDs are not continuous, this optimization breaks.
-                # But we assume ContinuousIndexer is used.
-                # If N=10 and max_id=100, we'd need a huge array.
-                # For safety, let's use max_task_id + 1 as array size, but warn?
-                # The user explicitly said "using this assumption", so we trust it.
-                pass
-
+        # 2. Task Data Structures (Pre-allocate for speed)
         self.durations = [0] * self.num_tasks
         self.predecessors = [[] for _ in range(self.num_tasks)]
         self.compatible_teams_indices = [[] for _ in range(self.num_tasks)]
-        # Use a large number for incompatible cost
+
+        # Use a large number for incompatible cost (Infinity)
         INF = 10**12
         self.team_costs = [[INF] * self.num_teams for _ in range(self.num_tasks)]
-
         self.tasks_with_teams = []
 
+        # 3. Flatten Task Data
         for tid, task in problem.tasks.items():
-            if tid >= self.num_tasks:
-                # Should not happen if assumption holds
-                continue
-
+            # Direct index access (No dictionary lookups or bounds checking needed)
             self.durations[tid] = task.duration
-            # Predecessors: assume they are also valid indices
             self.predecessors[tid] = task.predecessors
 
             if task.compatible_teams:
                 self.tasks_with_teams.append(tid)
 
-            for team_id, cost in task.compatible_teams.items():
-                if team_id in team_id_to_idx:
-                    t_idx = team_id_to_idx[team_id]
-                    self.compatible_teams_indices[tid].append(t_idx)
-                    self.team_costs[tid][t_idx] = cost
+            # Flatten compatibility map
+            # key `team_idx` is already an integer 0..M-1
+            for team_idx, cost in task.compatible_teams.items():
+                self.compatible_teams_indices[tid].append(team_idx)
+                self.team_costs[tid][team_idx] = cost
 
     def _decode(self, individual: Individual) -> List[Assignment]:
         """
