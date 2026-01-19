@@ -13,7 +13,9 @@ class ILPSolver(Runnable):
     3. Minimize total cost
     """
 
-    def run(self, problem: ProblemInstance) -> Schedule:
+    def run(
+        self, problem: ProblemInstance, time_limit: float = float("inf")
+    ) -> Schedule:
         # Mapping
         task_ids = list(problem.tasks.keys())
         task_id_to_idx = {t_id: i for i, t_id in enumerate(task_ids)}
@@ -49,6 +51,11 @@ class ILPSolver(Runnable):
         MAX_INT = int(1e9)
         num_teams_count = len(team_ids)
 
+        # Split time limit
+        phase_time_limit_ms = None
+        if time_limit != float("inf"):
+            phase_time_limit_ms = int(time_limit * 1000 / 3)
+
         # --- Phase 1: Maximize assigned tasks ---
         solver = pywraplp.Solver.CreateSolver("SAT")
         if not solver:
@@ -57,6 +64,9 @@ class ILPSolver(Runnable):
             solver = pywraplp.Solver.CreateSolver("SCIP")
             if not solver:
                 raise RuntimeError("No suitable solver backend found")
+
+        if phase_time_limit_ms:
+            solver.SetTimeLimit(phase_time_limit_ms)
 
         assigned_tasks = {}
         task2team = {}
@@ -115,6 +125,9 @@ class ILPSolver(Runnable):
         if not solver:
             solver = pywraplp.Solver.CreateSolver("SCIP")
 
+        if phase_time_limit_ms:
+            solver.SetTimeLimit(phase_time_limit_ms)
+
         assigned_tasks = {}
         task2team = {}
         start_task_time = {}
@@ -169,6 +182,9 @@ class ILPSolver(Runnable):
         solver = pywraplp.Solver.CreateSolver("SAT")
         if not solver:
             solver = pywraplp.Solver.CreateSolver("SCIP")
+
+        if phase_time_limit_ms:
+            solver.SetTimeLimit(phase_time_limit_ms)
 
         assigned_tasks = {}
         task2team = {}
