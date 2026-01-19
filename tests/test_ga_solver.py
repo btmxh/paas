@@ -1,8 +1,8 @@
 from paas.middleware.base import Pipeline
-from paas.middleware import ContinuousIndexer
+from paas.middleware import ContinuousIndexer, GAMiddleware
 import unittest
 from paas.models import Task, Team, ProblemInstance
-from paas.solvers.ga_solver import GASolver
+from paas.solvers.ga_greedy import GAGreedySolver
 
 
 class TestGASolver(unittest.TestCase):
@@ -23,12 +23,13 @@ class TestGASolver(unittest.TestCase):
 
         problem = ProblemInstance(num_tasks=3, num_teams=2, tasks=tasks, teams=teams)
 
-        solver = GASolver(
-            initial_population_size=5, max_population_size=10, max_generation=10
-        )
+        solver = GAGreedySolver()
         pipeline = Pipeline(
             middlewares=[
                 ContinuousIndexer(),
+                GAMiddleware(
+                    initial_population_size=5, max_population_size=10, max_generation=10
+                ),
             ],
             solver=solver,
         )
@@ -58,12 +59,13 @@ class TestGASolver(unittest.TestCase):
         teams = {1: Team(id=1, available_from=0)}
         problem = ProblemInstance(2, 1, tasks, teams)
 
-        solver = GASolver(
-            initial_population_size=5, max_population_size=10, max_generation=10
-        )
+        solver = GAGreedySolver()
         pipeline = Pipeline(
             middlewares=[
                 ContinuousIndexer(),
+                GAMiddleware(
+                    initial_population_size=5, max_population_size=10, max_generation=10
+                ),
             ],
             solver=solver,
         )

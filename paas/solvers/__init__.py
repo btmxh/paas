@@ -17,11 +17,18 @@ except Exception as e:
     warnings.warn(f"Failed to import ACOSolver: {e}")
 
 try:
-    from .ga_solver import GASolver  # noqa: F401
+    from .ga_greedy import GAGreedySolver  # noqa: F401
 
-    __all__.append("GASolver")
+    __all__.append("GAGreedySolver")
 except Exception as e:
-    warnings.warn(f"Failed to import GASolver: {e}")
+    warnings.warn(f"Failed to import GAGreedySolver: {e}")
+
+try:
+    from .tabu_greedy import TabuGreedySolver  # noqa: F401
+
+    __all__.append("TabuGreedySolver")
+except Exception as e:
+    warnings.warn(f"Failed to import TabuGreedySolver: {e}")
 
 try:
     from .pso_solver import PSOSolver  # noqa: F401
