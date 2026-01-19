@@ -84,7 +84,6 @@
       checks = forEachSystem (system: {
         pre-commit-check = git-hooks.lib.${system}.run {
           src = ./.;
-          configPath = ".pre-commit-config.nix.yaml";
           hooks = {
             nixfmt.enable = true;
             statix.enable = true;
