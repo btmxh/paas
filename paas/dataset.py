@@ -51,17 +51,36 @@ class Dataset:
     @staticmethod
     def generated() -> "Dataset":
         instances = []
-        directory = "data/generated_dataset"
-        if not os.path.exists(directory):
+        base_directory = "data/generated_dataset"
+
+        if not os.path.exists(base_directory):
             return Dataset([])
 
-        for filename in sorted(os.listdir(directory)):
-            if filename.endswith(".txt"):
-                input_path = os.path.join(directory, filename)
-                instance_id = filename[:-4]  # Remove .txt
+        # Iterate through each item in the base directory
+        # sorted() ensures small_1, small_2, etc., are processed in order
+        for subdir in sorted(os.listdir(base_directory)):
+            subdir_path = os.path.join(base_directory, subdir)
 
-                with open(input_path, "r") as f:
-                    problem = parse_input(f)
+            # Check if it's a directory and contains the target file
+            if os.path.isdir(subdir_path):
+                input_path = os.path.join(subdir_path, "input.txt")
 
-                instances.append(Instance(instance_id, problem))
+                if os.path.exists(input_path):
+                    # Use the subdirectory name (e.g., 'small_1') as the ID
+                    instance_id = subdir
+
+                    with open(input_path, "r") as f:
+                        problem = parse_input(f)
+
+                    sol_cp_path = os.path.join(subdir_path, "sol_cp.txt")
+                    with open(sol_cp_path, "r") as f:
+                        optimal_solution = parse_solution(f)
+                    instances.append(
+                        Instance(
+                            instance_id,
+                            problem,
+                            optimal_solution_result=optimal_solution,
+                        )
+                    )
+
         return Dataset(instances)
