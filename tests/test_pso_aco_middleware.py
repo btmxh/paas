@@ -8,7 +8,7 @@ class TestPSOCOMiddleware(unittest.TestCase):
     def setUp(self):
         # Create a simple problem
         tasks = {
-            1: Task(id=1, duration=10, compatible_teams={1: 10}),
+            1: Task(id=1, duration=10, successors=[2], compatible_teams={1: 10}),
             2: Task(id=2, duration=20, predecessors=[1], compatible_teams={1: 20}),
         }
         teams = {1: Team(id=1, available_from=0)}
@@ -25,7 +25,7 @@ class TestPSOCOMiddleware(unittest.TestCase):
         )
 
     def test_pso_middleware_with_seed(self):
-        middleware = PSOSearchMiddleware(swarm_size=5, max_iterations=2)
+        middleware = PSOSearchMiddleware(swarm_size=5, max_iterations=20)
         result = middleware.map_result(self.problem, self.seed)
         self.assertEqual(len(result.assignments), 2)
         # Verify it remains valid

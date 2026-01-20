@@ -63,7 +63,7 @@ class ACOSearchMiddleware(MapResult):
     def map_result(
         self,
         problem: ProblemInstance,
-        seed_schedule: Schedule,
+        result: Schedule,
         time_limit: float = float("inf"),
     ) -> Schedule:
         random.seed(self.seed)
@@ -86,29 +86,29 @@ class ACOSearchMiddleware(MapResult):
                     pheromones[tid][team_id] = 1.0
 
             # Use seed solution to boost initial pheromones
-            if seed_schedule.assignments:
+            if result.assignments:
                 # Calculate seed makespan for reward
                 seed_makespan = 0
-                for a in seed_schedule.assignments:
+                for a in result.assignments:
                     duration = problem.tasks[a.task_id].duration
                     seed_makespan = max(seed_makespan, a.start_time + duration)
 
                 initial_boost = self.q_reward / (seed_makespan + 1.0)
-                for a in seed_schedule.assignments:
+                for a in result.assignments:
                     if a.task_id in pheromones and a.team_id in pheromones[a.task_id]:
                         pheromones[a.task_id][a.team_id] += initial_boost
 
             best_global_ant: Optional[Ant] = None
 
             # If seed exists, it's our first global best
-            if seed_schedule.assignments:
+            if result.assignments:
                 best_global_ant = Ant(N, M)
-                best_global_ant.assignments = seed_schedule.assignments
-                best_global_ant.num_scheduled = len(seed_schedule.assignments)
+                best_global_ant.assignments = result.assignments
+                best_global_ant.num_scheduled = len(result.assignments)
 
                 total_cost = 0
                 makespan = 0
-                for a in seed_schedule.assignments:
+                for a in result.assignments:
                     dur = problem.tasks[a.task_id].duration
                     total_cost += problem.tasks[a.task_id].compatible_teams[a.team_id]
                     makespan = max(makespan, a.start_time + dur)
@@ -233,4 +233,4 @@ class ACOSearchMiddleware(MapResult):
 
             if best_global_ant:
                 return Schedule(assignments=best_global_ant.assignments)
-            return seed_schedule
+            return result

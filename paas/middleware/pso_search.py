@@ -214,7 +214,7 @@ class PSOSearchMiddleware(MapResult):
     def map_result(
         self,
         problem: ProblemInstance,
-        seed_schedule: Schedule,
+        result: Schedule,
         time_limit: float = float("inf"),
     ) -> Schedule:
         random.seed(self.seed)
@@ -224,8 +224,8 @@ class PSOSearchMiddleware(MapResult):
             swarm = [Particle(dim) for _ in range(self.swarm_size)]
 
             # Inject seed into first particle
-            if seed_schedule.assignments:
-                seed_pos = self._encode_schedule(seed_schedule, problem)
+            if result.assignments:
+                seed_pos = self._encode_schedule(result, problem)
                 swarm[0].position = seed_pos
                 swarm[0].best_position = list(seed_pos)
 
@@ -238,18 +238,18 @@ class PSOSearchMiddleware(MapResult):
                     break
 
                 for particle in swarm:
-                    result = self._decode_particle(particle.position, problem)
-                    fitness = self._calculate_fitness(result, problem)
+                    decode_result = self._decode_particle(particle.position, problem)
+                    fitness = self._calculate_fitness(decode_result, problem)
 
                     if fitness < particle.best_fitness:
                         particle.best_fitness = fitness
                         particle.best_position = list(particle.position)
-                        particle.best_result = result
+                        particle.best_result = decode_result
 
                     if fitness < global_best_fitness:
                         global_best_fitness = fitness
                         global_best_position = list(particle.position)
-                        global_best_result = result
+                        global_best_result = decode_result
 
                 if global_best_position is None:
                     continue
@@ -285,4 +285,4 @@ class PSOSearchMiddleware(MapResult):
             if global_best_result:
                 # If seed was better, it might still win via global_best if decode is exact or close
                 return Schedule(assignments=global_best_result.assignments)
-            return seed_schedule
+            return result
