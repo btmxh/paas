@@ -4,6 +4,7 @@ from .pso_solver import PSOSolver
 from .greedy_min_start_time import GreedyMinStartTimeSolver
 from .critical_path_slack import CriticalPathSlackSolver
 from .ilp_solver import ILPSolver
+from .random_solver import RandomSolver
 
 __all__ = [
     "CPSolver",
@@ -12,4 +13,5 @@ __all__ = [
     "GreedyMinStartTimeSolver",
     "CriticalPathSlackSolver",
     "ILPSolver",
+    "RandomSolver",
 ]
