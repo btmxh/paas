@@ -26,7 +26,7 @@ class TestPSOCOMiddleware(unittest.TestCase):
 
     def test_pso_middleware_with_seed(self):
         middleware = PSOSearchMiddleware(swarm_size=5, max_iterations=2)
-        result = middleware.apply(self.problem, self.seed)
+        result = middleware.map_result(self.problem, self.seed)
         self.assertEqual(len(result.assignments), 2)
         # Verify it remains valid
         self.assertTrue(any(a.task_id == 1 for a in result.assignments))
@@ -34,7 +34,7 @@ class TestPSOCOMiddleware(unittest.TestCase):
 
     def test_aco_middleware_with_seed(self):
         middleware = ACOSearchMiddleware(num_ants=5, iterations=2)
-        result = middleware.apply(self.problem, self.seed)
+        result = middleware.map_result(self.problem, self.seed)
         self.assertEqual(len(result.assignments), 2)
         self.assertTrue(any(a.task_id == 1 for a in result.assignments))
         self.assertTrue(any(a.task_id == 2 for a in result.assignments))

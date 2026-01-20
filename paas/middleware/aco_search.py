@@ -1,7 +1,7 @@
 import random
 from typing import List, Dict, Optional
 from paas.models import ProblemInstance, Schedule, Assignment
-from paas.middleware.base import Middleware
+from paas.middleware.base import MapResult
 from paas.time_budget import TimeBudget
 
 
@@ -17,7 +17,7 @@ class Ant:
         self.num_scheduled = 0
 
 
-class ACOSearchMiddleware(Middleware):
+class ACOSearchMiddleware(MapResult):
     """
     Ant Colony Optimization (ACO) based search middleware that can start from a seed solution.
     """
@@ -31,7 +31,9 @@ class ACOSearchMiddleware(Middleware):
         iterations: int = 100,
         q_reward: float = 1000.0,
         seed: int = 8,
+        time_factor: float = 1.0,
     ):
+        super().__init__(time_factor)
         self.alpha = alpha
         self.beta = beta
         self.rho = rho
@@ -58,7 +60,7 @@ class ACOSearchMiddleware(Middleware):
         h_cost = 1.0 / (cost + 1.0)
         return (h_time**1.5) * (h_cost**0.5)
 
-    def apply(
+    def map_result(
         self,
         problem: ProblemInstance,
         seed_schedule: Schedule,
