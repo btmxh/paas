@@ -6,6 +6,8 @@ from .continuous_indexer import ContinuousIndexer
 from .hill_climbing import HillClimbingMiddleware
 from .ga_search import GAMiddleware
 from .tabu_search import TabuSearchMiddleware
+from .pso_search import PSOSearchMiddleware
+from .aco_search import ACOSearchMiddleware
 
 __all__ = [
     "Middleware",
@@ -18,4 +20,6 @@ __all__ = [
     "HillClimbingMiddleware",
     "GAMiddleware",
     "TabuSearchMiddleware",
+    "PSOSearchMiddleware",
+    "ACOSearchMiddleware",
 ]
